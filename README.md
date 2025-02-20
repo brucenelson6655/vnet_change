@@ -11,3 +11,4 @@ Options : (required)
 -s subscription id
 -x Azure CLI login (optional)
 -h command line help
+
