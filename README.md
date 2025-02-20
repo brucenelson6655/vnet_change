@@ -1,9 +1,9 @@
 README
 
 Options : (required)
-- -c private subnet name
-- -p public subnet name
-- -v virtual network resource id
+- -c private subnet name (optional: existing subnet name is the default)
+- -p public subnet name (optional: existing subnet name is the default)
+- -v virtual network resource id (optional: existing vnetid is the default)
 - -w workspace resource id
 - -s subscription id
 - -x Azure CLI login (optional)
@@ -18,3 +18,5 @@ Needed are :
   - public subnet name
   - private subnet name
 - and the subscription id this workspace lives in
+
+#### IMPORTANT : if you are converting a workspace with a managed vnet to vnet injection then you must include vnet id, and subnet names

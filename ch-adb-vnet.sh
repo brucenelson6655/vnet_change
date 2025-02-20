@@ -2,11 +2,11 @@
 
 usage() {
         echo "./$(basename $0) -h --> shows usage"
-        echo "-c private subnet name"
-        echo "-p public subnet name"
-        echo "-v virtual network resource id"
-        echo "-w workspace resource id"
-        echo "-s subscription id"
+        echo "-c private subnet name (optional: existing subnet name is the default)"
+        echo "-p public subnet name (optional: existing subnet name is the default)"
+        echo "-v virtual network resource id (optional: existing vnet id is the default)"
+        echo "-w workspace resource id (required)"
+        echo "-s subscription id (required)"
         echo "-x Azure CLI login (optional)"
         exit
 }
@@ -67,6 +67,36 @@ MRGnameID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
 location=`echo $ws | jq .location  | sed 's/\"//g'`
 enableNPIP=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g'`
 
+if [[ ! $VnetNameID ]]
+then 
+    VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
+    if [ ! $VnetNameID ] || [ $VnetNameID == "null" ]
+    then 
+        echo "This workspace is not vnet injected, missing Vnet Resource ID is required"
+        exit
+    fi
+fi
+
+if [[ ! $pubSubnet ]]
+then 
+    pubSubnet=`echo $ws | jq .properties.parameters.customPublicSubnetName.value  | sed 's/\"//g'`
+    if [ ! $pubSubnet ] || [ $pubSubnet == "null" ]
+    then 
+        echo "This workspace is not vnet injected, missing public subnet name is required"
+        exit
+    fi
+fi
+
+if [[ ! $prvSubnet ]]
+then 
+    prvSubnet=`echo $ws | jq .properties.parameters.customPrivateSubnetName.value  | sed 's/\"//g'`
+    if [ ! $prvSubnet ] || [ $prvSubnet == "null" ]
+    then 
+        echo "This workspace is not vnet injected, missing private subnet name is required"
+        exit
+    fi
+fi
+
 echo '{
             "type": "Microsoft.Databricks/workspaces",
             "name": "'${workspaceName}'",
@@ -93,8 +123,9 @@ echo '{
             }
         }' | jq
 
+echo "Please review the updated vnet and subnet settings (above)"
 read -p "Are you sure? (Y or N): " -n 1 -r
-echo    # (optional) move to a new line
+echo    # new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     # update tthe Workspace 
