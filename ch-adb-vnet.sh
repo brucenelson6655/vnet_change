@@ -56,6 +56,20 @@ while getopts ${optstring} arg; do
 done
 
 
+if [[ ! $workSpaceResourceID ]]
+then 
+    echo "Workspace resource ID is required !"
+    exit
+fi
+
+
+if [[ ! $subscription ]]
+then 
+    echo "Subscription ID is required !"
+    exit
+fi
+
+
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
 # bearerToken=`az account get-access-token | jq .accessToken | sed 's/^"\|"$//g'`
 
