@@ -30,7 +30,6 @@ while getopts ${optstring} arg; do
       ;;
     s) 
       subscription=$OPTARG
-      echo $subscription
       az account set --subscription ${subscription}
       ;;
     v)
