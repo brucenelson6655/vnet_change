@@ -93,34 +93,37 @@ echo '{
             }
         }' | jq
 
-
-
-curl --location --globoff --request PUT 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version=2025-02-01-preview' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer '${bearerToken} \
---data '{
-            "type": "Microsoft.Databricks/workspaces",
-            "name": "'${workspaceName}'",
-            "location": "'${location}'",
-            "sku": {
-                "name": "premium"
-            },
-            "properties": {
-                "managedResourceGroupId": "'${MRGnameID}'",
-                "parameters": {
-                    "customPrivateSubnetName": {
-                        "value": "'${pubSubnet}'"
-                    },
-                    "customPublicSubnetName": {
-                        "value": "'${prvSubnet}'"
-                    },
-                    "customVirtualNetworkId": {
-                        "value": "'${VnetNameID}'"
-                    },
-                    "enableNoPublicIp": {
-                        "value": '${enableNPIP}'
+read -p "Are you sure? (Y or N): " -n 1 -r
+echo    # (optional) move to a new line
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    # update tthe Workspace 
+    curl --location --globoff --request PUT 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version=2025-02-01-preview' \
+    --header 'Content-Type: application/json' \
+    --header 'Authorization: Bearer '${bearerToken} \
+    --data '{
+                "type": "Microsoft.Databricks/workspaces",
+                "name": "'${workspaceName}'",
+                "location": "'${location}'",
+                "sku": {
+                    "name": "premium"
+                },
+                "properties": {
+                    "managedResourceGroupId": "'${MRGnameID}'",
+                    "parameters": {
+                        "customPrivateSubnetName": {
+                            "value": "'${pubSubnet}'"
+                        },
+                        "customPublicSubnetName": {
+                            "value": "'${prvSubnet}'"
+                        },
+                        "customVirtualNetworkId": {
+                            "value": "'${VnetNameID}'"
+                        },
+                        "enableNoPublicIp": {
+                            "value": '${enableNPIP}'
+                        }
                     }
                 }
-            }
-        }'
-
+            }'
+fi
