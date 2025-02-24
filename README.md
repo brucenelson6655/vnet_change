@@ -6,6 +6,7 @@ Options : (required)
 - -v virtual network resource id (optional: existing vnetid is the default)
 - -w workspace resource id
 - -s subscription id
+- -a API version (defaults to 2025-02-01-preview)
 - -x Azure CLI login (optional)
 - -h command line help
 

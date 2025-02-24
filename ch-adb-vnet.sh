@@ -7,11 +7,15 @@ usage() {
         echo "-v virtual network resource id (optional: existing vnet id is the default)"
         echo "-w workspace resource id (required)"
         echo "-s subscription id (required)"
+        echo "-a API version (defaults to 2025-02-01-preview)"
         echo "-x Azure CLI login (optional)"
         exit
 }
 
-optstring=":hs:w:v:p:c:x"
+optstring=":hs:w:v:p:c:a:x"
+
+# defaults
+apiVersion='2025-02-01-preview'
 
 if [ $# -eq 0 ] ; then 
   usage
@@ -34,6 +38,8 @@ while getopts ${optstring} arg; do
       ;;
     v)
       VnetNameID=$OPTARG
+      ;;
+    a) apiVersion=$OPTARG
       ;;
     p)
       pubSubnet=$OPTARG
@@ -73,9 +79,11 @@ fi
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
 # bearerToken=`az account get-access-token | jq .accessToken | sed 's/^"\|"$//g'`
 
-ws=`curl --location --globoff --request GET 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version=2025-02-01-preview' \
+ws=`curl --location --globoff --request GET 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version='${apiVersion} \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '${bearerToken}`
+
+# echo $ws > saved-template.json
 
 MRGnameID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
 location=`echo $ws | jq .location  | sed 's/\"//g'`
@@ -115,6 +123,7 @@ echo '{
             "type": "Microsoft.Databricks/workspaces",
             "name": "'${workspaceName}'",
             "location": "'${location}'",
+            "apiVersion": "'${apiVersion}'",
             "sku": {
                 "name": "premium"
             },
@@ -137,13 +146,14 @@ echo '{
             }
         }' | jq
 
+
 echo "Please review the updated vnet and subnet settings (above)"
 read -p "Are you sure? (Y or N): " -n 1 -r
 echo    # new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     # update tthe Workspace 
-    curl --location --globoff --request PUT 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version=2025-02-01-preview' \
+    curl --location --globoff --request PUT 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version='${apiVersion} \
     --header 'Content-Type: application/json' \
     --header 'Authorization: Bearer '${bearerToken} \
     --data '{
