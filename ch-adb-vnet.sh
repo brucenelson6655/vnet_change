@@ -16,6 +16,7 @@ optstring=":hs:w:v:p:c:a:x"
 
 # defaults
 apiVersion='2025-02-01-preview'
+apiEndpoint='https://management.azure.com'
 
 if [ $# -eq 0 ] ; then 
   usage
@@ -79,7 +80,7 @@ fi
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
 # bearerToken=`az account get-access-token | jq .accessToken | sed 's/^"\|"$//g'`
 
-ws=`curl --location --globoff --request GET 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version='${apiVersion} \
+ws=`curl --location --globoff --request GET ${apiEndpoint}'/'${workSpaceResourceID}'?api-version='${apiVersion} \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '${bearerToken}`
 
@@ -153,7 +154,7 @@ echo    # new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     # update tthe Workspace 
-    curl --location --globoff --request PUT 'https://eastus2euap.management.azure.com/'${workSpaceResourceID}'?api-version='${apiVersion} \
+    curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'?api-version='${apiVersion} \
     --header 'Content-Type: application/json' \
     --header 'Authorization: Bearer '${bearerToken} \
     --data '{
