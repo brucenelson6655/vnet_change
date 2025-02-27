@@ -1,5 +1,7 @@
 ### Simple script for updating the workspace vnet or coverting a managed vnet to a vnet injected Azure Databricks Workspace. 
 
+### ch-adb-vnet.sh 
+ 
 #### Options : 
 - -c private subnet name (optional: existing subnet name is the default)
 - -p public subnet name (optional: existing subnet name is the default)
@@ -7,6 +9,7 @@
 - -w workspace resource id
 - -s subscription id
 - -a API version (defaults to 2025-02-01-preview)
+- -d debug mode
 - -x Azure CLI login (optional)
 - -h command line help
 
@@ -40,5 +43,18 @@ sub=<subscription id>>
 
 sh ./ch-adb-vnet.sh -v $vid -w $wid -s $sub -c $prv -p $pub
 ```
+
+### ch-adb-vnet-all-in-one.sh 
+
+#### This script is for converting a Managed Vnet workspace to vnet injected only. It creates the Vnet, subnets, NSG, and NAT Gateway for the workspace conversion and also converts the workspace to NPIP if using PIP.
+
+#### Options : 
+- -w workspace resource id
+- -s subscription id
+- -a API version (defaults to 2025-02-01-preview)
+- -d debug mode
+- -x Azure CLI login (optional)
+- -h command line help
+
 Enjoy !
 

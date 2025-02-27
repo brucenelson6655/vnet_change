@@ -8,15 +8,18 @@ usage() {
         echo "-w workspace resource id (required)"
         echo "-s subscription id (required)"
         echo "-a API version (defaults to 2025-02-01-preview)"
+        echo "-d debug mode"
         echo "-x Azure CLI login (optional)"
         exit
 }
 
-optstring=":hs:w:v:p:c:a:x"
+optstring=":hs:w:v:p:c:a:xbd"
 
 # defaults
 apiVersion='2025-02-01-preview'
 apiEndpoint='https://management.azure.com'
+batchMode=0
+debugMode=0
 
 if [ $# -eq 0 ] ; then 
   usage
@@ -47,6 +50,15 @@ while getopts ${optstring} arg; do
       ;;
     c)
       prvSubnet=$OPTARG
+      ;;
+    b)
+      echo "batch"
+      batchMode=1
+      ;;
+    d)
+      echo "debug"
+      debugMode=1
+      set -xv
       ;;
     x)
       az login
