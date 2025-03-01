@@ -47,6 +47,7 @@ while getopts ${optstring} arg; do
     w)
       workSpaceResourceID=$OPTARG
       workspaceName=$(basename "$workSpaceResourceID")
+      workSpaceLog=${workspaceName}'.'`date '+%Y%m%d%H%M%S'`
       ;;
     s) 
       subscription=$OPTARG
@@ -73,7 +74,6 @@ while getopts ${optstring} arg; do
   esac
 done
 
-
 if [[ ! $workSpaceResourceID ]]
 then 
     echo "Workspace resource ID is required !"
@@ -89,11 +89,21 @@ fi
 
 
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
-# bearerToken=`az account get-access-token | jq .accessToken | sed 's/^"\|"$//g'`
+if [[ $? > 0 ]]
+then 
+    echo error with getting bearer token - exiting
+    exit
+fi
 
 ws=`curl --location --globoff --request GET ${apiEndpoint}'/'${workSpaceResourceID}'?api-version='${apiVersion} \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '${bearerToken}`
+
+if [[ $? > 0 ]]
+then 
+    echo error workspace metadata try using the -x flag to login - exiting
+    exit
+fi
 
 MRGnameID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
 location=`echo $ws | jq .location  | sed 's/\"//g'`
@@ -110,6 +120,11 @@ VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  |
 
 echo "All in One Mode"
 azws=`az resource show --ids ${workSpaceResourceID}`
+if [[ $? > 0 ]]
+then 
+    echo error workspace metadata - exiting
+    exit
+fi
 
 if [ $debugMode == 1 ]
 then 
@@ -125,20 +140,50 @@ natGW=${workspaceName}'-natgw'
 pipName=${workspaceName}'-pip'
 
 # create the NSG
-az network nsg create -g ${resourceGrpName} -l ${location} -n ${nsgName} 
+az network nsg create -g ${resourceGrpName} -l ${location} -n ${nsgName} > ${workSpaceLog}.log 2> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating NSG - exiting
+    exit
+fi
 
 # create the Vnet
-az network vnet create -g ${resourceGrpName} -l ${location} -n ${VnetName} --address-prefix ${addressPrefix}
+az network vnet create -g ${resourceGrpName} -l ${location} -n ${VnetName} --address-prefix ${addressPrefix}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating Vnet - exiting
+    exit
+fi
 sleep 1
 
 # create the subnets 
-az network vnet subnet create -g ${resourceGrpName}  --vnet-name ${VnetName} -n ${pubSubnet} --address-prefixes ${publicCIDR} --network-security-group ${nsgName} --delegations Microsoft.Databricks/workspaces 
-az network vnet subnet create -g ${resourceGrpName}  --vnet-name ${VnetName} -n ${prvSubnet} --address-prefixes ${privateCIDR} --network-security-group ${nsgName} --delegations Microsoft.Databricks/workspaces 
-
+az network vnet subnet create -g ${resourceGrpName}  --vnet-name ${VnetName} -n ${pubSubnet} --address-prefixes ${publicCIDR} --network-security-group ${nsgName} --delegations Microsoft.Databricks/workspaces  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating pub subnet - exiting
+    exit
+fi
+az network vnet subnet create -g ${resourceGrpName}  --vnet-name ${VnetName} -n ${prvSubnet} --address-prefixes ${privateCIDR} --network-security-group ${nsgName} --delegations Microsoft.Databricks/workspaces  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating pvt subnet - exiting
+    exit
+fi
 # create public ip 
-az network public-ip create -g ${resourceGrpName} -n ${pipName}
+az network public-ip create -g ${resourceGrpName} -n ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating public IP - exiting
+    exit
+fi
 # create nat gateway 
-az network nat gateway create --resource-group ${resourceGrpName} --name ${natGW} --location ${location} --public-ip-addresses  ${pipName} 
+az network nat gateway create --resource-group ${resourceGrpName} --name ${natGW} --location ${location} --public-ip-addresses  ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+if [[ $? > 0 ]]
+then 
+    echo error creating NAT gateway - exiting
+    exit
+fi
+
 
 echo '{
             "type": "Microsoft.Databricks/workspaces",
@@ -170,7 +215,9 @@ echo '{
 sleep 1
 
 
-echo update the Workspace 
+echo 
+echo update the Workspace This could take up to 15 minutes .... 
+echo
 curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'?api-version='${apiVersion} \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '${bearerToken} \
@@ -198,7 +245,7 @@ curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'
                     }
                 }
             }
-        }'
+        }'  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
 
 
 echo "Waiting to complete change .... "
@@ -206,8 +253,8 @@ az databricks workspace wait --ids ${workSpaceResourceID} --updated
 if [ $enableNPIP == "false" ]
 then
    echo "Converting to NPIP"
-   az databricks workspace update --ids ${workSpaceResourceID} --enable-no-public-ip true
+   az databricks workspace update --ids ${workSpaceResourceID} --enable-no-public-ip true  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
 fi
 echo "attaching NAT gateway to public subnet" 
-az network vnet subnet update -g ${resourceGrpName} --vnet-name ${VnetName} -n ${pubSubnet} --nat-gateway ${natGW}
+az network vnet subnet update -g ${resourceGrpName} --vnet-name ${VnetName} -n ${pubSubnet} --nat-gateway ${natGW}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
 echo "Done"

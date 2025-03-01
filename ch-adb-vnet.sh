@@ -20,6 +20,7 @@ apiVersion='2025-02-01-preview'
 apiEndpoint='https://management.azure.com'
 batchMode=0
 debugMode=0
+vnetPrepFail=0
 
 if [ $# -eq 0 ] ; then 
   usage
@@ -112,6 +113,25 @@ then
     fi
 fi
 
+checkVnetSubnets () {
+    subnetID=${VnetNameID}'/subnets/'$1
+    subResource=`az resource show --ids ${subnetID}`
+    delegation=`echo $subResource | jq .properties.delegations[0].properties.serviceName | sed 's/\"//g'`
+    nsgID=`echo $subResource | jq .properties.networkSecurityGroup.id | sed 's/\"//g'`
+    
+    if [ $nsgID == 'null' ]
+    then
+        echo NSG is missing from your $1 subnet
+        vnetPrepFail=1
+    fi
+    if [ ! $delegation == "Microsoft.Databricks/workspaces" ]
+    then
+        echo delegation is missing from your $1 subnet
+        vnetPrepFail=1
+    fi
+    echo # new line
+}
+
 if [[ ! $pubSubnet ]]
 then 
     pubSubnet=`echo $ws | jq .properties.parameters.customPublicSubnetName.value  | sed 's/\"//g'`
@@ -120,7 +140,11 @@ then
         echo "This workspace is not vnet injected, missing public subnet name is required"
         exit
     fi
+else
+    echo checking $pubSubnet preperation
+    checkVnetSubnets $pubSubnet
 fi
+
 
 if [[ ! $prvSubnet ]]
 then 
@@ -130,6 +154,15 @@ then
         echo "This workspace is not vnet injected, missing private subnet name is required"
         exit
     fi
+else
+    echo checking $prvSubnet preperation
+    checkVnetSubnets $prvSubnet
+fi
+
+if [[ $vnetPrepFail == 1 ]]
+then
+    echo Exiting : please confirm your subnets have NSG and delegation configured and retry
+    exit
 fi
 
 echo '{
@@ -158,7 +191,6 @@ echo '{
                 }
             }
         }' | jq
-
 
 echo "Please review the updated vnet and subnet settings (above)"
 read -p "Are you sure? (Y or N): " -n 1 -r

@@ -1,1 +1,3 @@
 armtest-ws.sh
+*.log
+*.err
