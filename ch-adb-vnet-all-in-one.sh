@@ -168,8 +168,6 @@ then
     exit
 fi
 
-exit
-
 VnetNameID='/subscriptions/'${subscription}'/resourceGroups/'${resourceGrpName}'/providers/Microsoft.Network/virtualNetworks/'${VnetName}
 
 # create the NSG
