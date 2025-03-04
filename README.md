@@ -7,7 +7,6 @@
 - -p public subnet name (optional: existing subnet name is the default)
 - -v virtual network resource id (optional: existing vnetid is the default)
 - -w workspace resource id
-- -s subscription id
 - -a API version (defaults to 2025-02-01-preview)
 - -d debug mode
 - -x Azure CLI login (optional)
@@ -21,7 +20,7 @@
   - vnet resource id
   - public subnet name
   - private subnet name
-- and the subscription id this workspace lives in
+
 
 #### IMPORTANT : if you are converting an Azure Databricks workspace with a managed vnet to vnet injection then you must include a vnet id, and subnet names.
 

@@ -6,7 +6,6 @@ usage() {
         echo "-p public subnet name (optional: existing subnet name is the default)"
         echo "-v virtual network resource id (optional: existing vnet id is the default)"
         echo "-w workspace resource id (required)"
-        echo "-s subscription id (required)"
         echo "-a API version (defaults to 2025-02-01-preview)"
         echo "-d debug mode"
         echo "-x Azure CLI login (optional)"
