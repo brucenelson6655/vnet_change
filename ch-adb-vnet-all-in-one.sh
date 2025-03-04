@@ -3,7 +3,6 @@
 usage() {
         echo "./$(basename $0) -h --> shows usage"
         echo "-w workspace resource id (required)"
-        echo "-s subscription id (required)"
         echo "-a API version (defaults to 2025-02-01-preview)"
         echo "-d debug mode"
         echo "-x Azure CLI login (optional)"
@@ -21,7 +20,7 @@ usage() {
 # if pip convert to npip az databricks workspace update --resource-group <> --name <> --enable-no-public-ip true
 # add a Nat gateway
 
-optstring=":hs:w:a:xd"
+optstring=":hw:a:xd"
 
 # defaults
 apiVersion='2025-02-01-preview'
@@ -48,10 +47,6 @@ while getopts ${optstring} arg; do
       workSpaceResourceID=$OPTARG
       workspaceName=$(basename "$workSpaceResourceID")
       workSpaceLog=${workspaceName}'.'`date '+%Y%m%d%H%M%S'`
-      ;;
-    s) 
-      subscription=$OPTARG
-      az account set --subscription ${subscription}
       ;;
     a) apiVersion=$OPTARG
       ;;
@@ -80,12 +75,41 @@ then
     exit
 fi
 
+subscription=`echo ${workSpaceResourceID} | cut -d '/' -f 3`
 
 if [[ ! $subscription ]]
 then 
     echo "Subscription ID is required !"
     exit
 fi
+
+az account set --subscription ${subscription}
+
+convertNPIP() {
+    if [ $enableNPIP == "false" ]
+    then
+        # create public ip 
+        az network public-ip create -g ${resourceGrpName} -n ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+        if [[ $? > 0 ]]
+        then 
+            echo error creating public IP - exiting
+            exit
+        fi
+        # create nat gateway 
+        az network nat gateway create --resource-group ${resourceGrpName} --name ${natGW} --location ${location} --public-ip-addresses  ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+        if [[ $? > 0 ]]
+        then 
+            echo error creating NAT gateway - exiting
+            exit
+        fi
+        echo "Converting to NPIP"
+        az databricks workspace update --ids ${workSpaceResourceID} --enable-no-public-ip true  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+        echo "attaching NAT gateway to public subnet" 
+        az network vnet subnet update -g ${resourceGrpName} --vnet-name ${VnetName} -n ${pubSubnet} --nat-gateway ${natGW}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+    else
+        echo Workspace is NPIP
+    fi
+}
 
 
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
@@ -112,11 +136,7 @@ enableNPIP=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed '
 VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
 
 
-    if [[ ! $VnetNameID == "null" ]]
-    then 
-        echo "This workspace is vnet injected, please use the ch-adb-vnet.sh script"
-        exit
-    fi
+
 
 echo "All in One Mode"
 azws=`az resource show --ids ${workSpaceResourceID}`
@@ -135,9 +155,22 @@ VnetName=${workspaceName}'-vnet'
 nsgName=${workspaceName}'-nsg'
 resourceGrpName=`echo $azws | jq .resourceGroup | sed 's/\"//g'`
 
-VnetNameID='/subscriptions/'${subscription}'/resourceGroups/'${resourceGrpName}'/providers/Microsoft.Network/virtualNetworks/'${VnetName}
+
 natGW=${workspaceName}'-natgw'
 pipName=${workspaceName}'-pip'
+
+if [[ ! $VnetNameID == "null" ]]
+then 
+    echo "This workspace is vnet injected"
+    pubSubnet=`echo $azws | jq .properties.parameters.customPublicSubnetName.value | sed 's/\"//g'`
+    prvSubnet=`echo $azws | jq .properties.parameters.customPrivateSubnetName.value | sed 's/\"//g'`
+    convertNPIP
+    exit
+fi
+
+exit
+
+VnetNameID='/subscriptions/'${subscription}'/resourceGroups/'${resourceGrpName}'/providers/Microsoft.Network/virtualNetworks/'${VnetName}
 
 # create the NSG
 az network nsg create -g ${resourceGrpName} -l ${location} -n ${nsgName} > ${workSpaceLog}.log 2> ${workSpaceLog}.err
@@ -169,20 +202,7 @@ then
     echo error creating pvt subnet - exiting
     exit
 fi
-# create public ip 
-az network public-ip create -g ${resourceGrpName} -n ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
-if [[ $? > 0 ]]
-then 
-    echo error creating public IP - exiting
-    exit
-fi
-# create nat gateway 
-az network nat gateway create --resource-group ${resourceGrpName} --name ${natGW} --location ${location} --public-ip-addresses  ${pipName}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
-if [[ $? > 0 ]]
-then 
-    echo error creating NAT gateway - exiting
-    exit
-fi
+
 
 
 echo '{
@@ -197,10 +217,10 @@ echo '{
                 "managedResourceGroupId": "'${MRGnameID}'",
                 "parameters": {
                     "customPrivateSubnetName": {
-                        "value": "'${pubSubnet}'"
+                        "value": "'${prvSubnet}'"
                     },
                     "customPublicSubnetName": {
-                        "value": "'${prvSubnet}'"
+                        "value": "'${pubSubnet}'"
                     },
                     "customVirtualNetworkId": {
                         "value": "'${VnetNameID}'"
@@ -250,11 +270,7 @@ curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'
 
 echo "Waiting to complete change .... "
 az databricks workspace wait --ids ${workSpaceResourceID} --updated
-if [ $enableNPIP == "false" ]
-then
-   echo "Converting to NPIP"
-   az databricks workspace update --ids ${workSpaceResourceID} --enable-no-public-ip true  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
-fi
-echo "attaching NAT gateway to public subnet" 
-az network vnet subnet update -g ${resourceGrpName} --vnet-name ${VnetName} -n ${pubSubnet} --nat-gateway ${natGW}  >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+
+# convertNPIP
+
 echo "Done"

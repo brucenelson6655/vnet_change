@@ -46,11 +46,10 @@ sh ./ch-adb-vnet.sh -v $vid -w $wid -s $sub -c $prv -p $pub
 
 ### ch-adb-vnet-all-in-one.sh 
 
-#### This script is for converting a Managed Vnet workspace to vnet injected only. It creates the Vnet, subnets, NSG, and NAT Gateway for the workspace conversion and also converts the workspace to NPIP if using PIP.
+#### This script is for converting a Managed Vnet workspace to vnet injected and converts PIP to NPIP. It creates the Vnet, subnets and NSG if needed, and NAT Gateway for the workspace conversion and also converts the workspace to NPIP if using PIP.
 
 #### Options : 
 - -w workspace resource id
-- -s subscription id
 - -a API version (defaults to 2025-02-01-preview)
 - -d debug mode
 - -x Azure CLI login (optional)
