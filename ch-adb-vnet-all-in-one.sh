@@ -271,6 +271,6 @@ curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'
 echo "Waiting to complete change .... "
 az databricks workspace wait --ids ${workSpaceResourceID} --updated
 
-# convertNPIP
+convertNPIP
 
 echo "Done"
