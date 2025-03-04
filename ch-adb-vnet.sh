@@ -13,7 +13,7 @@ usage() {
         exit
 }
 
-optstring=":hs:w:v:p:c:a:xbd"
+optstring=":hw:v:p:c:a:xbd"
 
 # defaults
 apiVersion='2025-02-01-preview'
@@ -36,10 +36,7 @@ while getopts ${optstring} arg; do
     w)
       workSpaceResourceID=$OPTARG
       workspaceName=$(basename "$workSpaceResourceID")
-      ;;
-    s) 
-      subscription=$OPTARG
-      az account set --subscription ${subscription}
+      subscription=`echo ${workSpaceResourceID} | cut -d '/' -f 3`
       ;;
     v)
       VnetNameID=$OPTARG
@@ -89,7 +86,7 @@ then
     exit
 fi
 
-
+az account set --subscription ${subscription}
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
 # bearerToken=`az account get-access-token | jq .accessToken | sed 's/^"\|"$//g'`
 
@@ -97,7 +94,7 @@ ws=`curl --location --globoff --request GET ${apiEndpoint}'/'${workSpaceResource
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer '${bearerToken}`
 
-# echo $ws > saved-template.json
+echo $ws | jq
 
 MRGnameID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
 location=`echo $ws | jq .location  | sed 's/\"//g'`
@@ -177,10 +174,10 @@ echo '{
                 "managedResourceGroupId": "'${MRGnameID}'",
                 "parameters": {
                     "customPrivateSubnetName": {
-                        "value": "'${pubSubnet}'"
+                        "value": "'${prvSubnet}'"
                     },
                     "customPublicSubnetName": {
-                        "value": "'${prvSubnet}'"
+                        "value": "'${pubSubnet}'"
                     },
                     "customVirtualNetworkId": {
                         "value": "'${VnetNameID}'"
@@ -212,10 +209,10 @@ then
                     "managedResourceGroupId": "'${MRGnameID}'",
                     "parameters": {
                         "customPrivateSubnetName": {
-                            "value": "'${pubSubnet}'"
+                            "value": "'${prvSubnet}'"
                         },
                         "customPublicSubnetName": {
-                            "value": "'${prvSubnet}'"
+                            "value": "'${pubSubnet}'"
                         },
                         "customVirtualNetworkId": {
                             "value": "'${VnetNameID}'"
@@ -227,3 +224,8 @@ then
                 }
             }'
 fi
+
+echo # new line
+echo "Waiting to complete change .... "
+az databricks workspace wait --ids ${workSpaceResourceID} --updated
+echo done

@@ -148,8 +148,10 @@ fi
 
 if [ $debugMode == 1 ]
 then 
-   echo $azws | jq
+   echo $azws | jq 
 fi
+
+echo $azws | jq > ${workSpaceLog}.log 2> ${workSpaceLog}.err
 
 VnetName=${workspaceName}'-vnet'
 nsgName=${workspaceName}'-nsg'
@@ -171,7 +173,7 @@ fi
 VnetNameID='/subscriptions/'${subscription}'/resourceGroups/'${resourceGrpName}'/providers/Microsoft.Network/virtualNetworks/'${VnetName}
 
 # create the NSG
-az network nsg create -g ${resourceGrpName} -l ${location} -n ${nsgName} > ${workSpaceLog}.log 2> ${workSpaceLog}.err
+az network nsg create -g ${resourceGrpName} -l ${location} -n ${nsgName} >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
 if [[ $? > 0 ]]
 then 
     echo error creating NSG - exiting
