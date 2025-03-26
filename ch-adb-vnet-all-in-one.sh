@@ -349,10 +349,10 @@ curl --location --globoff --request PUT ${apiEndpoint}'/'${workSpaceResourceID}'
                 "managedResourceGroupId": "'${MRGnameID}'",
                 "parameters": {
                     "customPrivateSubnetName": {
-                        "value": "'${pubSubnet}'"
+                        "value": "'${prvSubnet}'"
                     },
                     "customPublicSubnetName": {
-                        "value": "'${prvSubnet}'"
+                        "value": "'${pubSubnet}'"
                     },
                     "customVirtualNetworkId": {
                         "value": "'${VnetNameID}'"
