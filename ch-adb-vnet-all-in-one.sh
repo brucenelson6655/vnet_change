@@ -130,8 +130,7 @@ natgway() {
         #if so is it attached to the private subnet as well ?
         prvSubnetid=${VnetNameID}'/subnets/'${prvSubnet}
         prvnatgw=`az network vnet subnet show --ids ${prvSubnetid} | jq .natGateway.id | sed 's/\"//g' 2>> ${workSpaceLog}.err` 
-        echo $prvnatgw
-
+        
         if [ ! $prvnatgw == "null" ]
         then
             echo "congrats its complete"
