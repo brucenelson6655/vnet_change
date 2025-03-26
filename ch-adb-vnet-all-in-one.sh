@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 usage() {
         echo "./$(basename $0) -h --> shows usage"
