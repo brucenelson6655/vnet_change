@@ -3,13 +3,11 @@
 echo "=== Script START ==="
 echo "=== Script can execute upto 30 minutes for the updates. Please wait until the script finishes the execution. ==="
 
-# TODO: Create the service endpoint for the subnet in the vnet.
 # TODO: Add the workspace check mode.
 
 # TODO: Logging Improvements
 # TODO: For logging the output to the files, convert the statement into the function and use it everywhere.
 # TODO: For the log file, we should also add some more logs to clarify which step/phase does the json blobs belongs to.
-
 
 # TODO: (nit) Fix the prompt for the user input (if we are asking them to confirm stuff)
 # TODO: (nit) Fix the indentation for the file.
@@ -61,7 +59,7 @@ while getopts ${optstring} arg; do
     w)
       globalWorkspaceResourceID=$OPTARG
       globalWorkspaceName=$(basename "$globalWorkspaceResourceID")
-      workspaceLogFileNamePrefix=${globalWorkspaceName}'.'`date '+%Y%m%d%H%M%S'`
+      workspaceLogFileNamePrefix=${globalWorkspaceName}'.'$(date '+%Y%m%d%H%M%S')
       touch ${workspaceLogFileNamePrefix}.log
       touch ${workspaceLogFileNamePrefix}.err
       ;;
@@ -82,7 +80,7 @@ then
     exit
 fi
 
-subscription=`echo ${globalWorkspaceResourceID} | cut -d '/' -f 3`
+subscription=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 3)
 
 log_message() {
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -98,7 +96,7 @@ selectAzureDataPlaneSubscription() {
         log_message "Subscription ID is required !"
         exit
     fi
-    local subscriptionid=`az account show --subscription ${subscription} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+    local subscriptionid=$(az account show --subscription ${subscription} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
     if [[ ! $subscription == $subscriptionid ]]
     then
         log_message "Login Required"
@@ -124,7 +122,7 @@ selectAzureDataPlaneSubscription() {
 
 createNSGIfDoesNotExist() {
   # create the NSG
-  local nsgresourceId=`az network nsg show -g ${globalResourceGroupName} -n ${newNsgName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  local nsgresourceId=$(az network nsg show -g ${globalResourceGroupName} -n ${newNsgName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
 
   if [ ! -z $nsgresourceId ]
   then
@@ -151,7 +149,7 @@ createNSGIfDoesNotExist() {
 }
 
 createVNetAndSubnetsIfDoesNotExist() {
-  local vnetresourceid=`az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  local vnetresourceid=$(az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the Vnet
   if [ ! -z $vnetresourceid ]
   then
@@ -177,7 +175,7 @@ createVNetAndSubnetsIfDoesNotExist() {
   sleep 1
 
   # create the subnets
-  local pubSubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  local pubSubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the subnet
   if [ ! -z $pubSubnetid ]
   then
@@ -201,7 +199,7 @@ createVNetAndSubnetsIfDoesNotExist() {
       fi
   fi
 
-  local pvtsubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  local pvtsubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the subnet
   if [ ! -z $pvtsubnetid ]
   then
@@ -228,7 +226,7 @@ createVNetAndSubnetsIfDoesNotExist() {
 
 createIPIfDoesNotExist() {
   # test if public ip exists already
-  piprid=`az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .id  | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  piprid=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .id  | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
 
   if [ ! -z $piprid ]
   then
@@ -254,22 +252,27 @@ createIPIfDoesNotExist() {
     fi
   fi
 
-  globalPublicIpAddress=`az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g'`
+  globalPublicIpAddress=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g')
 }
 
 createNatGatewayIfDoesNotExist() {
-    # TODO: Check if either of the subnets are linked with the NAT GW.
     natGatewayName=${globalWorkspaceName}'-dbdg-natgw'
     # create nat gateway
     #check to see if we have a natgateway attached
     pubSubnetid=${VnetNameID}'/subnets/'${pubSubnet}
-    pubnatgw=`az network vnet subnet show --ids ${pubSubnetid} | jq .natGateway.id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+    pubnatgw=$(az network vnet subnet show --ids ${pubSubnetid} | jq .natGateway.id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
 
     if [[ ! $pubnatgw == "null" ]]
     then
+        natGatewayName=$(basename $pubnatgw)
+        natgwpip=$(az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq -r '.publicIpAddresses[0].id' | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+        newPublicIpName=$(basename $natgwpip)
+        globalPublicIpAddress=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g')
+        print "NAT Gateway Name = $natGatewayName"
+        print "Public IP = $globalPublicIpAddress"
         #if so is it attached to the private subnet as well ?
         prvSubnetid=${VnetNameID}'/subnets/'${prvSubnet}
-        prvnatgw=`az network vnet subnet show --ids ${prvSubnetid} | jq .natGateway.id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+        prvnatgw=$(az network vnet subnet show --ids ${prvSubnetid} | jq .natGateway.id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
 
         if [[ ! $prvnatgw == "null" ]]
         then
@@ -284,20 +287,25 @@ createNatGatewayIfDoesNotExist() {
     fi
 
     #if not lets see if a natgateway exists
-    natgwid=`az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+    natgwid=$(az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
     #if it exists - just need to attach it and exit
     echo NAT GW $natgwid
     if [[ ! -z $natgwid ]]
     then
         echo "$natGatewayName exists, we will use this NAT Gateway"
-        # read -p "Are you sure? (Y or N): " -n 1 -r
-        # echo    # new line
         echo -n "Are you sure? (Y or N): "
         read -k 1 -r REPLY
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
             echo "proceeding"
+            # TODO get the correct names of things NATW and PIP
+            print $natgwid
+            natgwpip=$(az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq -r '.publicIpAddresses[0].id' | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+            newPublicIpName=$(basename $natgwpip)
+            globalPublicIpAddress=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g')
+            print "NAT Gateway Name = $natGatewayName"
+            print "Public IP = $globalPublicIpAddress"
         else
             exit
         fi
@@ -311,7 +319,11 @@ createNatGatewayIfDoesNotExist() {
             echo error creating NAT gateway - exiting
             exit
         fi
+        # echo "waiting on NAT Gateway to complete deployment" 
+        # az network nat gateway wait --resource-group ${globalResourceGroupName} --name ${natGatewayName} --exists
+        # echo "deployed"
     fi
+        echo $newVnetName
         echo "attaching NAT gateway to public subnet"
         az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${pubSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
         echo "attaching NAT gateway to private subnet"
@@ -319,7 +331,7 @@ createNatGatewayIfDoesNotExist() {
 }
 
 updateWorkspaceFromPIPtoNPIP() {
-    echo "updating PIP to NPIP for workspace"
+    echo "Verifying PIP to NPIP for workspace"
     if [[ ${workspaceExistingEnableNPIPConfiguration} == "false" ]]
     then
         echo "Converting to NPIP"
@@ -333,19 +345,19 @@ updateWorkspaceFromPIPtoNPIP() {
 }
 
 fetchWorkspaceMetadata() {
-  ws=`az resource show --ids ${globalWorkspaceResourceID} 2>> ${workspaceLogFileNamePrefix}.err`
+  ws=$(az resource show --ids ${globalWorkspaceResourceID} 2>> ${workspaceLogFileNamePrefix}.err)
   if [[ $? > 0 ]]
   then
-      echo error workspace metadata try using the -x flag to login - exiting
+      log_message "error getting workspace metadata, please verify that your Databricks workspace resource ID is correct !"
       exit
   fi
   echo $ws | jq >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
-  workspaceRegion=`echo $ws | jq .location  | sed 's/\"//g'`
-  globalResourceGroupName=`echo $ws | jq .resourceGroup | sed 's/\"//g'`
-  workspaceMRGResourceID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
-  workspaceExistingEnableNPIPConfiguration=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g'`
-  VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
+  workspaceRegion=$(echo $ws | jq .location  | sed 's/\"//g')
+  globalResourceGroupName=$(echo $ws | jq .resourceGroup | sed 's/\"//g')
+  workspaceMRGResourceID=$(echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g')
+  workspaceExistingEnableNPIPConfiguration=$(echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g')
+  VnetNameID=$(echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g')
 
   echo "##################################################"
   echo "**************************************************"
@@ -358,10 +370,7 @@ fetchWorkspaceMetadata() {
   echo "**************************************************"
   echo "##################################################"
 
-  echo "The script relies on the naming convention. If new resources need to be created, then " \
-  "those resources will have the workspace name as the prefix. In order to not mess up with the execution of the script, " \
-  "please ensure that we do not have any existing resource in the resource group with same prefix as workspace."
-  echo -n "Are you sure? (Y or N): "
+  echo -n "Should we start updating the workspace? (Y or N): "
   read -k 1 -r REPLY
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]
@@ -456,15 +465,15 @@ updateWorkspace() {
       updateWorkspaceFromDBMangedtoVnetInjected
   else
       echo "This workspace is Vnet Injected"
-      pubSubnet=`echo $ws | jq .properties.parameters.customPublicSubnetName.value | sed 's/\"//g'`
-      prvSubnet=`echo $ws | jq .properties.parameters.customPrivateSubnetName.value | sed 's/\"//g'`
+      pubSubnet=$(echo $ws | jq .properties.parameters.customPublicSubnetName.value | sed 's/\"//g')
+      prvSubnet=$(echo $ws | jq .properties.parameters.customPrivateSubnetName.value | sed 's/\"//g')
+      newVnetName=$(basename $VnetNameID)
       echo "private subnet name = $prvSubnet"
       echo "public subnet name = $pubSubnet"
   fi
 
   updateWorkspaceFromPIPtoNPIP
-  log_message "Your stable puplic IP address is ${globalPublicIpAddress}, recommended add it to the universe file"
-
+  
   echo "The workspace update has been completed."
   echo "##################################################"
   echo "**************************************************"

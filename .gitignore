@@ -3,3 +3,4 @@ armtest-ws.sh
 *.err
 manish-*
 *-save.sh
+*copy*
