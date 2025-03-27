@@ -122,8 +122,8 @@ selectAzureDataPlaneSubscription() {
 
 createNSGIfDoesNotExist() {
   # create the NSG
-  local nsgresourceId=$(az network nsg show -g ${globalResourceGroupName} -n ${newNsgName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
-
+  local nsgresourceId=$(az network nsg list |  jq '.[] | select(.name=="'${newNsgName}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  
   if [ ! -z $nsgresourceId ]
   then
     echo "$newNsgName exists, we will use this NSG"
@@ -137,19 +137,20 @@ createNSGIfDoesNotExist() {
       exit
     fi
   else
-    echo create NSG $newNsgName
+    log_message create NSG $newNsgName
     az network nsg create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newNsgName} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
     # TODO: Carve out the following into a function since this pattern seems used everywhere.
     if [[ $? > 0 ]]
     then
-        echo error creating NSG - exiting
+        log_message error creating NSG - exiting
         exit
     fi
   fi
 }
 
 createVNetAndSubnetsIfDoesNotExist() {
-  local vnetresourceid=$(az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  # local vnetresourceid=$(az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  local vnetresourceid=$(az network vnet list |  jq '.[] | select(.name=="'${newVnetName}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the Vnet
   if [ ! -z $vnetresourceid ]
   then
@@ -164,18 +165,18 @@ createVNetAndSubnetsIfDoesNotExist() {
         exit
       fi
   else
-      echo create vnet $newVnetName
+      log_message create vnet $newVnetName
       az network vnet create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newVnetName} --address-prefix ${defaultVnetCIDR}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
-          echo error creating Vnet - exiting
+          log_message error creating Vnet - exiting
           exit
       fi
   fi
   sleep 1
 
   # create the subnets
-  local pubSubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  local pubSubnetid=$(az network vnet subnet list -g ${globalResourceGroupName}  --vnet-name ${newVnetName} |  jq '.[] | select(.name=="'${pubSubnet}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the subnet
   if [ ! -z $pubSubnetid ]
   then
@@ -190,16 +191,17 @@ createVNetAndSubnetsIfDoesNotExist() {
         exit
       fi
   else
-      echo create public subnet $pubSubnetid
+      log_message create public subnet $pubSubnetid
       az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces --service-endpoints Microsoft.Storage >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
-          echo error creating pub subnet - exiting
+          log_message error creating pub subnet - exiting
           exit
       fi
   fi
 
-  local pvtsubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  local pvtSubnetid=$(az network vnet subnet list -g ${globalResourceGroupName}  --vnet-name ${newVnetName} |  jq '.[] | select(.name=="'${pvtSubnet}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  # local pvtsubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the subnet
   if [ ! -z $pvtsubnetid ]
   then
@@ -214,11 +216,11 @@ createVNetAndSubnetsIfDoesNotExist() {
         exit
       fi
   else
-      echo create private subnet $prvSubnet
+      log_message create private subnet $prvSubnet
       az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} --address-prefixes ${defaultPrivateCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
-          echo error creating pvt subnet - exiting
+          log_message error creating pvt subnet - exiting
           exit
       fi
   fi
@@ -226,7 +228,7 @@ createVNetAndSubnetsIfDoesNotExist() {
 
 createIPIfDoesNotExist() {
   # test if public ip exists already
-  piprid=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .id  | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+  piprid=$(az network public-ip list -g ${globalResourceGroupName} |  jq '.[] | select(.name=="'${newPublicIpName}'")' | jq .id  | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
 
   if [ ! -z $piprid ]
   then
@@ -243,11 +245,11 @@ createIPIfDoesNotExist() {
       exit
     fi
   else
-    echo create public ip
+    log_message create public ip
     az network public-ip create -g ${globalResourceGroupName} -n ${newPublicIpName} --location ${workspaceRegion} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
     if [[ $? > 0 ]]
     then
-      echo error creating public IP - exiting
+      log_message error creating public IP - exiting
       exit
     fi
   fi
@@ -287,9 +289,8 @@ createNatGatewayIfDoesNotExist() {
     fi
 
     #if not lets see if a natgateway exists
-    natgwid=$(az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
+    natgwid=$(az network nat gateway list --resource-group ${globalResourceGroupName} |  jq '.[] | select(.name=="'${natGatewayName}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
     #if it exists - just need to attach it and exit
-    echo NAT GW $natgwid
     if [[ ! -z $natgwid ]]
     then
         echo "$natGatewayName exists, we will use this NAT Gateway"
@@ -299,8 +300,6 @@ createNatGatewayIfDoesNotExist() {
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
             echo "proceeding"
-            # TODO get the correct names of things NATW and PIP
-            print $natgwid
             natgwpip=$(az network nat gateway show --resource-group ${globalResourceGroupName} --name ${natGatewayName} | jq -r '.publicIpAddresses[0].id' | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
             newPublicIpName=$(basename $natgwpip)
             globalPublicIpAddress=$(az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g')
@@ -312,21 +311,20 @@ createNatGatewayIfDoesNotExist() {
     else
         #if not lets create a pip (if it doesn't exist) and then out nat gateway
         createIPIfDoesNotExist
-        echo creating NAT gateway
+        log_message creating NAT gateway
         az network nat gateway create --resource-group ${globalResourceGroupName} --name ${natGatewayName} --location ${workspaceRegion} --public-ip-addresses  ${newPublicIpName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
         if [[ $? > 0 ]]
         then
-            echo error creating NAT gateway - exiting
+            log_message error creating NAT gateway - exiting
             exit
         fi
         # echo "waiting on NAT Gateway to complete deployment" 
         # az network nat gateway wait --resource-group ${globalResourceGroupName} --name ${natGatewayName} --exists
         # echo "deployed"
     fi
-        echo $newVnetName
-        echo "attaching NAT gateway to public subnet"
+        log_message "attaching NAT gateway to public subnet"
         az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${pubSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-        echo "attaching NAT gateway to private subnet"
+        log_message "attaching NAT gateway to private subnet"
         az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${prvSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 }
 
