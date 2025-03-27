@@ -3,8 +3,6 @@
 echo "=== Script START ==="
 echo "=== Script can execute upto 30 minutes for the updates. Please wait until the script finishes the execution. ==="
 
-# TODOs
-
 # TODO: Create the service endpoint for the subnet in the vnet.
 # TODO: Add the workspace check mode.
 
@@ -12,21 +10,9 @@ echo "=== Script can execute upto 30 minutes for the updates. Please wait until 
 # TODO: For logging the output to the files, convert the statement into the function and use it everywhere.
 # TODO: For the log file, we should also add some more logs to clarify which step/phase does the json blobs belongs to.
 
-# TODO: Minimize the usage of the global variables. Convert the variables to local and pass them around into functions.
 
-# TODO: Fix the prompt for the user input (if we are asking them to confirm stuff)
-# TODO: Fix the prompt to accomodate for the zsh instead of bash.
-
-# TODO: Print out the stable IP of the NAT Gateway and recommend user to add it to the universe file.
-
+# TODO: (nit) Fix the prompt for the user input (if we are asking them to confirm stuff)
 # TODO: (nit) Fix the indentation for the file.
-
-# TODO: Update Test Cases for the correctness of the script
-# 1. DB Managed PIP to Vnet Injected NPIP Workspace
-# 2. VNet Injected PIP to Vnet Injected NPIP Workspace
-# 3. Partial updates for the above workspaces.
-# 4. DB Managed NPIP to Vnet Injected NPIP workspace.
-
 
 usage() {
   echo "./$(basename $0) -h --> shows usage"
@@ -59,7 +45,7 @@ defaultPrivateCIDR='10.139.64.0/18'
 # # set -e  # exits on any command failure
 # # set -u  # exits on undefined variables
 
-# TODO: Can we extract the input parsing into a function as well.
+# TODO: (nit) Can we extract the input parsing into a function as well.
 if [ $# -eq 0 ] ; then
   usage
   exit
@@ -155,7 +141,7 @@ createNSGIfDoesNotExist() {
   else
     echo create NSG $newNsgName
     az network nsg create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newNsgName} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-    # TODO: Can we also carve out the following into a function since this pattern seems used everywhere.
+    # TODO: Carve out the following into a function since this pattern seems used everywhere.
     if [[ $? > 0 ]]
     then
         echo error creating NSG - exiting
@@ -268,7 +254,7 @@ createIPIfDoesNotExist() {
     fi
   fi
 
-  globalPulicIpAddress=`az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g'`
+  globalPublicIpAddress=`az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g'`
 }
 
 createNatGatewayIfDoesNotExist() {
@@ -347,7 +333,6 @@ updateWorkspaceFromPIPtoNPIP() {
 }
 
 fetchWorkspaceMetadata() {
-  # TODO: Can we export the output from this function and use it as input for other functions.
   ws=`az resource show --ids ${globalWorkspaceResourceID} 2>> ${workspaceLogFileNamePrefix}.err`
   if [[ $? > 0 ]]
   then
@@ -478,17 +463,17 @@ updateWorkspace() {
   fi
 
   updateWorkspaceFromPIPtoNPIP
-  log_message "Your stable puplic IP address is ${globalPulicIpAddress}, recommended add it to the universe file" 
+  log_message "Your stable puplic IP address is ${globalPublicIpAddress}, recommended add it to the universe file"
 
   echo "The workspace update has been completed."
   echo "##################################################"
   echo "**************************************************"
   echo "Next Steps:"
   echo "Step 1: Please create a classic cluster and run the following command '%sh curl -s ifconfig.me'"
-  echo "Step 2: Ensure the IP received from the previous step matches the NAT GW IP of the Vnet of workspace."
+  echo "Step 2: Ensure the IP received from the previous step matches the IP ${globalPublicIpAddress}."
   echo "Step 3: Put out a PR to add the public IP to the file -> 'envoy/traffic/workspace-cidrs.jsonnet'. Example PR -> https://github.com/databricks-eng/universe/pull/977086"
   echo "(Optional) If your workspace has IP ACLs configured, please allowlist the IP of the clusters to the IP ACL list."
-  echo "(Optional) If you read/write a lot of data to storage buckets, please create an Azure Service Endpoint to save the costs. Follow go/azureserviceendpoints"
+  echo "(Optional) We created the service endpoint for the storage. If you don't need it, please delete it manually."
   echo "**************************************************"
   echo "##################################################"
 }
