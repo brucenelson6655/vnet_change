@@ -1,6 +1,3 @@
-PrivateBin
-     
- This document will expire in 6 days.
 #!/bin/zsh
 
 echo "=== Script START ==="
@@ -50,13 +47,13 @@ defaultApiVersion='2025-02-01-preview'
 defaultApiEndpoint='https://management.azure.com'
 pubSubnet="public-subnet"
 prvSubnet="private-subnet"
-defaultVnetCIDR='10.140.0.0/16'
-defaultPublicCIDR='10.140.0.0/18'
-defaultPrivateCIDR='10.140.64.0/18'
+defaultVnetCIDR='10.139.0.0/16'
+defaultPublicCIDR='10.139.0.0/18'
+defaultPrivateCIDR='10.139.64.0/18'
 
-set -x  # shows all commands being executed
-set -e  # exits on any command failure
-set -u  # exits on undefined variables
+## set -x  # shows all commands being executed
+# # set -e  # exits on any command failure
+# # set -u  # exits on undefined variables
 
 # TODO: Can we extract the input parsing into a function as well.
 if [ $# -eq 0 ] ; then
@@ -75,6 +72,8 @@ while getopts ${optstring} arg; do
       globalWorkspaceResourceID=$OPTARG
       globalWorkspaceName=$(basename "$globalWorkspaceResourceID")
       workspaceLogFileNamePrefix=${globalWorkspaceName}'.'`date '+%Y%m%d%H%M%S'`
+      touch ${workspaceLogFileNamePrefix}.log
+      touch ${workspaceLogFileNamePrefix}.err
       ;;
     :)
       echo "$0: Must supply an argument to -$OPTARG." >&2
@@ -95,53 +94,148 @@ fi
 
 subscription=`echo ${globalWorkspaceResourceID} | cut -d '/' -f 3`
 
-if [[ ! $subscription ]]
-then
-    echo "Subscription ID is required !"
-    exit
-fi
+log_message() {
+    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+    local message="$*"
+    echo "[$timestamp] $message" >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+    echo "[$timestamp] $message"
+}
 
 selectAzureDataPlaneSubscription() {
-  # TODO: Add the azure login step here. The script failed on arca devbox since this step was missing.
-  az account set --subscription ${subscription}
+    local subscription=$1
+    if [[ ! $subscription ]]
+    then
+        log_message "Subscription ID is required !" 
+        exit
+    fi
+    local subscriptionid=`az account show --subscription ${subscription} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+    if [[ ! $subscription == $subscriptionid ]]
+    then 
+        log_message "Login Required" 
+        az login >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+        if [[ $? > 0 ]]
+        then 
+            log_message "Login Failed Please check your access"
+            exit
+        else
+            log_message "Login Successful !" 
+        fi
+    fi 
+    log_message "Setting Active Subscription to $subscription"  
+    az account set --subscription ${subscription} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+    if [[ $? > 0 ]]
+    then 
+        log_message "Subscription $subscription was not accessable"
+        exit
+    else
+        return 0    
+    fi
 }
 
 createNSGIfDoesNotExist() {
   # create the NSG
   # TODO: Check for the existence of the NSG
-  az network nsg create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newNsgName} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-  # TODO: Can we also carve out the following into a function since this pattern seems used everywhere.
-  if [[ $? > 0 ]]
+  local nsgresourceId=`az network nsg show -g ${globalResourceGroupName} -n ${newNsgName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+
+  if [ ! -z $nsgresourceId ]
   then
-      echo error creating NSG - exiting
+    echo "$newNsgName exists, we will use this NSG"
+    echo -n "Are you sure? (Y or N): "
+    read -k 1 -r REPLY
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+      echo "proceeding"
+    else
       exit
+    fi
+  else
+    echo create NSG $newNsgName
+    az network nsg create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newNsgName} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+    # TODO: Can we also carve out the following into a function since this pattern seems used everywhere.
+    if [[ $? > 0 ]]
+    then
+        echo error creating NSG - exiting
+        exit
+    fi
   fi
 }
 
 createVNetAndSubnetsIfDoesNotExist() {
   # TODO: Update the code to check for the existence of Vnet
+  local vnetresourceid=`az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
   # create the Vnet
-  az network vnet create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newVnetName} --address-prefix ${defaultVnetCIDR}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-  if [[ $? > 0 ]]
+  if [ ! -z $vnetresourceid ]
   then
-      echo error creating Vnet - exiting
-      exit
+      echo "$newVnetName exists, we will use this Vnet"
+      echo -n "Are you sure? (Y or N): "
+      read -k 1 -r REPLY
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]
+      then
+        echo "proceeding"
+      else
+        exit
+      fi
+  else
+      echo create vnet $newVnetName
+      az network vnet create -g ${globalResourceGroupName} -l ${workspaceRegion} -n ${newVnetName} --address-prefix ${defaultVnetCIDR}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      if [[ $? > 0 ]]
+      then
+          echo error creating Vnet - exiting
+          exit
+      fi
   fi
   sleep 1
 
   # create the subnets
   # TODO: Update the code to check for the existence of subnets into the Vnet
-  az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-  if [[ $? > 0 ]]
+  local pubSubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  # create the Vnet
+  if [ ! -z $pubSubnetid ]
   then
-      echo error creating pub subnet - exiting
-      exit
-  fi
-  az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} --address-prefixes ${defaultPrivateCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-  if [[ $? > 0 ]]
+      echo "$pubSubnet exists, we will use this Subnet"
+      echo -n "Are you sure? (Y or N): "
+      read -k 1 -r REPLY
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]
+      then
+        echo "proceeding"
+      else
+        exit
+      fi
+  else
+      echo create
+      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      if [[ $? > 0 ]]
+      then
+          echo error creating pub subnet - exiting
+          exit
+      fi
+  fi 
+
+  local pvtsubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
+  # create the Vnet
+  if [ ! -z $pvtsubnetid ]
   then
-      echo error creating pvt subnet - exiting
-      exit
+      echo "$prvSubnet exists, we will use this subnet"
+      echo -n "Are you sure? (Y or N): "
+      read -k 1 -r REPLY
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]
+      then
+        echo "proceeding"
+      else
+        exit
+      fi
+  else
+      echo create private subnet $prvSubnet
+      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} --address-prefixes ${defaultPrivateCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      if [[ $? > 0 ]]
+      then
+          echo error creating pvt subnet - exiting
+          exit
+      fi
   fi
 }
 
@@ -250,13 +344,13 @@ updateWorkspaceFromPIPtoNPIP() {
 
 fetchWorkspaceMetadata() {
   # TODO: Can we export the output from this function and use it as input for other functions.
-  ws=`az resource show --ids ${globalWorkspaceResourceID}`
+  ws=`az resource show --ids ${globalWorkspaceResourceID} 2>> ${workspaceLogFileNamePrefix}.err`
   if [[ $? > 0 ]]
   then
       echo error workspace metadata try using the -x flag to login - exiting
       exit
   fi
-  echo $ws | jq > ${workspaceLogFileNamePrefix}.log 2> ${workspaceLogFileNamePrefix}.err
+  echo $ws | jq >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
   workspaceRegion=`echo $ws | jq .location  | sed 's/\"//g'`
   globalResourceGroupName=`echo $ws | jq .resourceGroup | sed 's/\"//g'`
@@ -374,6 +468,11 @@ updateWorkspace() {
   echo "Done"
 }
 
-selectAzureDataPlaneSubscription
+selectAzureDataPlaneSubscription ${subscription}
+if [[ $? > 0 ]]
+then 
+    echo login error - exiting
+    exit
+fi
+
 updateWorkspace
-PrivateBin - Because ignorance is bliss1.7.5PrivateBin is a minimalist, open source online pastebin where the server has zero knowledge of pasted data. Data is encrypted/decrypted in the browser using 256 bits AES. More information on the project page.

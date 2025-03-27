@@ -89,9 +89,38 @@ then
     exit
 fi
 
-az account set --subscription ${subscription}
+# az account set --subscription ${subscription}
 
-
+check_login() {
+    local subscription=$1
+    if [[ ! $subscription ]]
+    then
+        echo "Subscription ID is required !"
+        exit
+    fi
+    local subscriptionid=`az account show --subscription ${subscription} | jq .id | sed 's/\"//g' 2>> ${workSpaceLog}.err` 
+    if [[ ! $subscription == $subscriptionid ]]
+    then 
+        echo "Login Required" 
+        az login >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+        if [[ $? > 0 ]]
+        then 
+            echo "Login Failed Please check your access"
+            exit
+        else
+            echo "Login Successful !" 
+        fi
+    fi 
+    echo "Setting Active Subscription to $subscription"  
+    az account set --subscription ${subscription} >> ${workSpaceLog}.log 2>> ${workSpaceLog}.err
+    if [[ $? > 0 ]]
+    then 
+        echo "Subscription $subscription was not accessable"
+        exit
+    else
+        return 0    
+    fi
+}
 
 pubpip() {
     # test if public ip exists already 
@@ -189,6 +218,14 @@ convertNPIP() {
     natgway
 }
 
+check_login ${subscription}
+if [[ $? > 0 ]]
+then 
+    echo login error - exiting
+    exit
+fi
+
+exit
 
 bearerToken=`az account get-access-token | jq .accessToken | sed 's/\"//g'`
 if [[ $? > 0 ]]
