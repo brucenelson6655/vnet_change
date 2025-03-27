@@ -273,7 +273,7 @@ createIPIfDoesNotExist() {
 
 createNatGatewayIfDoesNotExist() {
     # TODO: Check if either of the subnets are linked with the NAT GW.
-    natGatewayName=${globalWorkspaceName}'-natgw'
+    natGatewayName=${globalWorkspaceName}'-dbdg-natgw'
     # create nat gateway
     #check to see if we have a natgateway attached
     pubSubnetid=${VnetNameID}'/subnets/'${pubSubnet}
@@ -461,9 +461,9 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
 updateWorkspace() {
   fetchWorkspaceMetadata
 
-  newVnetName=${globalWorkspaceName}'-vnet'
-  newNsgName=${globalWorkspaceName}'-nsg'
-  newPublicIpName=${globalWorkspaceName}'-public-ip'
+  newVnetName=${globalWorkspaceName}'-dbdg-vnet'
+  newNsgName=${globalWorkspaceName}'-dbdg-nsg'
+  newPublicIpName=${globalWorkspaceName}'-dbdg-public-ip'
 
   if [[ $VnetNameID == "null" ]]
   then
