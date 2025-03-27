@@ -212,7 +212,7 @@ createVNetAndSubnetsIfDoesNotExist() {
           echo error creating pub subnet - exiting
           exit
       fi
-  fi 
+  fi
 
   local pvtsubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
   # create the Vnet
@@ -266,6 +266,8 @@ createIPIfDoesNotExist() {
       exit
     fi
   fi
+
+  globalPulicIpAddress=`az network public-ip show -g ${globalResourceGroupName} -n ${newPublicIpName} | jq .ipAddress  | sed 's/\"//g'`
 }
 
 createNatGatewayIfDoesNotExist() {
@@ -464,6 +466,8 @@ updateWorkspace() {
   # This will help ensure that the final workspace is VNet Injected NPIP workspace.
   updateWorkspaceFromDBMangedtoVnetInjected
   updateWorkspaceFromPIPtoNPIP
+  
+  log_message "Your stable puplic IP address is ${globalPulicIpAddress}, recommended add it to the universe file" 
 
   echo "Done"
 }
