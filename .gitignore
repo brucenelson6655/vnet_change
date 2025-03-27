@@ -2,3 +2,4 @@ armtest-ws.sh
 *.log
 *.err
 manish-*
+*-save.sh
