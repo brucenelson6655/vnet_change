@@ -1,8 +1,12 @@
 #!/bin/zsh
 
 echo "=== Script START ==="
+echo "=== Script can execute upto 30 minutes for the updates. Please wait until the script finishes the execution. ==="
 
 # TODOs
+
+# TODO: Create the service endpoint for the subnet in the vnet.
+# TODO: Add the workspace check mode.
 
 # TODO: Logging Improvements
 # TODO: For logging the output to the files, convert the statement into the function and use it everywhere.
@@ -105,36 +109,35 @@ selectAzureDataPlaneSubscription() {
     local subscription=$1
     if [[ ! $subscription ]]
     then
-        log_message "Subscription ID is required !" 
+        log_message "Subscription ID is required !"
         exit
     fi
     local subscriptionid=`az account show --subscription ${subscription} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
     if [[ ! $subscription == $subscriptionid ]]
-    then 
-        log_message "Login Required" 
+    then
+        log_message "Login Required"
         az login >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
         if [[ $? > 0 ]]
-        then 
+        then
             log_message "Login Failed Please check your access"
             exit
         else
-            log_message "Login Successful !" 
+            log_message "Login Successful !"
         fi
-    fi 
-    log_message "Setting Active Subscription to $subscription"  
+    fi
+    log_message "Setting Active Subscription to $subscription"
     az account set --subscription ${subscription} >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
     if [[ $? > 0 ]]
-    then 
+    then
         log_message "Subscription $subscription was not accessable"
         exit
     else
-        return 0    
+        return 0
     fi
 }
 
 createNSGIfDoesNotExist() {
   # create the NSG
-  # TODO: Check for the existence of the NSG
   local nsgresourceId=`az network nsg show -g ${globalResourceGroupName} -n ${newNsgName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
 
   if [ ! -z $nsgresourceId ]
@@ -162,7 +165,6 @@ createNSGIfDoesNotExist() {
 }
 
 createVNetAndSubnetsIfDoesNotExist() {
-  # TODO: Update the code to check for the existence of Vnet
   local vnetresourceid=`az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
   # create the Vnet
   if [ ! -z $vnetresourceid ]
@@ -189,9 +191,8 @@ createVNetAndSubnetsIfDoesNotExist() {
   sleep 1
 
   # create the subnets
-  # TODO: Update the code to check for the existence of subnets into the Vnet
   local pubSubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
-  # create the Vnet
+  # create the subnet
   if [ ! -z $pubSubnetid ]
   then
       echo "$pubSubnet exists, we will use this Subnet"
@@ -205,8 +206,8 @@ createVNetAndSubnetsIfDoesNotExist() {
         exit
       fi
   else
-      echo create
-      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces --service-endpoints Microsoft.Storage >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      echo create public subnet $pubSubnetid
+      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
           echo error creating pub subnet - exiting
@@ -215,7 +216,7 @@ createVNetAndSubnetsIfDoesNotExist() {
   fi
 
   local pvtsubnetid=`az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err`
-  # create the Vnet
+  # create the subnet
   if [ ! -z $pvtsubnetid ]
   then
       echo "$prvSubnet exists, we will use this subnet"
@@ -230,7 +231,7 @@ createVNetAndSubnetsIfDoesNotExist() {
       fi
   else
       echo create private subnet $prvSubnet
-      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} --address-prefixes ${defaultPrivateCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} --address-prefixes ${defaultPrivateCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
           echo error creating pvt subnet - exiting
@@ -286,15 +287,14 @@ createNatGatewayIfDoesNotExist() {
 
         if [[ ! $prvnatgw == "null" ]]
         then
-            echo "congrats its complete"
-            exit
+            return
         else
             #lets attach that to the private sunet as well
             echo "attaching NAT gateway to private subnet"
             az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${prvSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
         fi
-        #if we are good here lets exit.
-        exit
+        #if we are good here lets return.
+        return
     fi
 
     #if not lets see if a natgateway exists
@@ -338,8 +338,10 @@ updateWorkspaceFromPIPtoNPIP() {
     then
         echo "Converting to NPIP"
         az databricks workspace update --ids ${globalWorkspaceResourceID} --enable-no-public-ip true  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+        echo "Waiting for workspace update to complete .... "
+        az databricks workspace wait --ids ${globalWorkspaceResourceID} --updated
     else
-        echo Workspace is NPIP
+        echo "Workspace is NPIP"
     fi
     createNatGatewayIfDoesNotExist
 }
@@ -360,11 +362,29 @@ fetchWorkspaceMetadata() {
   workspaceExistingEnableNPIPConfiguration=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g'`
   VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
 
-  echo "Region : " $workspaceRegion
-  echo "Resource Group Name : " $globalResourceGroupName
-  echo "Existing EnableNPIP Configuration: " $workspaceExistingEnableNPIPConfiguration
-  echo "Workspace MRG Resource ID : " $workspaceMRGResourceID
-  echo "Custom VNet Resource ID : " $VnetNameID
+  echo "##################################################"
+  echo "**************************************************"
+  echo "Subscription: $subscription"
+  echo "Region: $workspaceRegion"
+  echo "Workspace Name: $globalWorkspaceName"
+  echo "Resource Group Name: $globalResourceGroupName"
+  echo "Existing EnableNPIP Configuration: $workspaceExistingEnableNPIPConfiguration"
+  echo "Custom VNet Resource ID: $VnetNameID"
+  echo "**************************************************"
+  echo "##################################################"
+
+  echo "The script relies on the naming convention. If new resources need to be created, then " \
+  "those resources will have the workspace name as the prefix. In order to not mess up with the execution of the script, " \
+  "please ensure that we do not have any existing resource in the resource group with same prefix as workspace."
+  echo -n "Are you sure? (Y or N): "
+  read -k 1 -r REPLY
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
+    echo "proceeding"
+  else
+    exit
+  fi
 }
 
 updateWorkspaceFromDBMangedtoVnetInjected() {
@@ -434,7 +454,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
       }
     }' >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
-  echo "Waiting to complete change .... "
+  echo "Waiting for workspace update to complete .... "
   az databricks workspace wait --ids ${globalWorkspaceResourceID} --updated
 }
 
@@ -445,36 +465,37 @@ updateWorkspace() {
   newNsgName=${globalWorkspaceName}'-nsg'
   newPublicIpName=${globalWorkspaceName}'-public-ip'
 
-  # TODO: Instead of having two calls to the function updateWorkspaceFromPIPtoNPIP, can we have only one.
-    # We can do the update of DB Managed to VNet Injected only if it is applicable.
-    # If it is not applicable, we just move onto the next step and update PIP to NPIP (as applicable).
-
-  # The workspace is VNet Injected. We only need to update the PIP to NPIP
-  if [[ ! $VnetNameID == "null" ]]
+  if [[ $VnetNameID == "null" ]]
   then
-      echo "This workspace is vnet injected"
+      echo "This workspace is Databricks Managed and will be updated to VNet Injected"
+      updateWorkspaceFromDBMangedtoVnetInjected
+  else
+      echo "This workspace is Vnet Injected"
       pubSubnet=`echo $ws | jq .properties.parameters.customPublicSubnetName.value | sed 's/\"//g'`
       prvSubnet=`echo $ws | jq .properties.parameters.customPrivateSubnetName.value | sed 's/\"//g'`
-      echo $prvSubnet $pubSubnet
-      updateWorkspaceFromPIPtoNPIP
-      exit
+      echo "private subnet name = $prvSubnet"
+      echo "public subnet name = $pubSubnet"
   fi
 
-  # IF the workspace is DB Managed PIP, then update the workspace from
-  # 1. DB Managed to VNet Injected
-  # 2. PIP to  NPIP
-  # This will help ensure that the final workspace is VNet Injected NPIP workspace.
-  updateWorkspaceFromDBMangedtoVnetInjected
   updateWorkspaceFromPIPtoNPIP
-  
   log_message "Your stable puplic IP address is ${globalPulicIpAddress}, recommended add it to the universe file" 
 
-  echo "Done"
+  echo "The workspace update has been completed."
+  echo "##################################################"
+  echo "**************************************************"
+  echo "Next Steps:"
+  echo "Step 1: Please create a classic cluster and run the following command '%sh curl -s ifconfig.me'"
+  echo "Step 2: Ensure the IP received from the previous step matches the NAT GW IP of the Vnet of workspace."
+  echo "Step 3: Put out a PR to add the public IP to the file -> 'envoy/traffic/workspace-cidrs.jsonnet'. Example PR -> https://github.com/databricks-eng/universe/pull/977086"
+  echo "(Optional) If your workspace has IP ACLs configured, please allowlist the IP of the clusters to the IP ACL list."
+  echo "(Optional) If you read/write a lot of data to storage buckets, please create an Azure Service Endpoint to save the costs. Follow go/azureserviceendpoints"
+  echo "**************************************************"
+  echo "##################################################"
 }
 
 selectAzureDataPlaneSubscription ${subscription}
 if [[ $? > 0 ]]
-then 
+then
     echo login error - exiting
     exit
 fi
