@@ -2,6 +2,10 @@
 
 echo "=== Script START ==="
 echo "=== Script can execute upto 30 minutes for the updates. Please wait until the script finishes the execution. ==="
+echo
+echo "=== Prequisites ==="
+echo "=== The script use azure cli. If you don't have it installed, please follow go/azurecli for installation"
+echo
 
 # TODO: Add the workspace check mode.
 
@@ -13,9 +17,10 @@ echo "=== Script can execute upto 30 minutes for the updates. Please wait until 
 # TODO: (nit) Fix the indentation for the file.
 
 usage() {
+  echo "=== HELP ==="
   echo "./$(basename $0) -h --> shows usage"
-  echo "-w workspace resource id (required)"
-  echo "The script relies on the fact that there is no other resource (except workspace) with the workspace name in the resource group containing the workspace. If this is not the case, please do not run the script"
+  echo "-w workspace resource id (required). The format for workspace resource id is '/subscriptions/653bb673-e55d-452c-a90b-d064d5d53ca4/resourceGroups/resourceGroupName/providers/Microsoft.Databricks/workspaces/workspaceName'. This information should already be present in the JIRA Ticket."
+  echo
   exit
 }
 
@@ -123,7 +128,7 @@ selectAzureDataPlaneSubscription() {
 createNSGIfDoesNotExist() {
   # create the NSG
   local nsgresourceId=$(az network nsg list |  jq '.[] | select(.name=="'${newNsgName}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
-  
+
   if [ ! -z $nsgresourceId ]
   then
     echo "$newNsgName exists, we will use this NSG"
@@ -469,7 +474,7 @@ updateWorkspace() {
   fi
 
   updateWorkspaceFromPIPtoNPIP
-  
+
   echo "The workspace update has been completed."
   echo "##################################################"
   echo "**************************************************"
