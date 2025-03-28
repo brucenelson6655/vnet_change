@@ -149,7 +149,6 @@ createNSGIfDoesNotExist() {
 }
 
 createVNetAndSubnetsIfDoesNotExist() {
-  # local vnetresourceid=$(az network vnet show -g ${globalResourceGroupName} -n ${newVnetName} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   local vnetresourceid=$(az network vnet list |  jq '.[] | select(.name=="'${newVnetName}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the Vnet
   if [ ! -z $vnetresourceid ]
@@ -201,7 +200,6 @@ createVNetAndSubnetsIfDoesNotExist() {
   fi
 
   local pvtSubnetid=$(az network vnet subnet list -g ${globalResourceGroupName}  --vnet-name ${newVnetName} |  jq '.[] | select(.name=="'${pvtSubnet}'")' | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
-  # local pvtsubnetid=$(az network vnet subnet show -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${prvSubnet} | jq .id | sed 's/\"//g' 2>> ${workspaceLogFileNamePrefix}.err)
   # create the subnet
   if [ ! -z $pvtsubnetid ]
   then
