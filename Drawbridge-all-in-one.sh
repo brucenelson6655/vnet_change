@@ -158,7 +158,7 @@ createVNetAndSubnetsIfDoesNotExist() {
   # create the Vnet
   if [ ! -z $vnetresourceid ]
   then
-      echo "$newVnetName exists, we will use this Vnet"
+      log_message "$newVnetName exists, we will use this Vnet"
       echo -n "Are you sure? (Y or N): "
       read -k 1 -r REPLY
       echo
@@ -184,7 +184,7 @@ createVNetAndSubnetsIfDoesNotExist() {
   # create the subnet
   if [ ! -z $pubSubnetid ]
   then
-      echo "$pubSubnet exists, we will use this Subnet"
+      log_message "$pubSubnet exists, we will use this Subnet"
       echo -n "Are you sure? (Y or N): "
       read -k 1 -r REPLY
       echo
@@ -195,7 +195,7 @@ createVNetAndSubnetsIfDoesNotExist() {
         exit
       fi
   else
-      log_message create public subnet $pubSubnetid
+      log_message create public subnet $pubSubnet
       az network vnet subnet create -g ${globalResourceGroupName}  --vnet-name ${newVnetName} -n ${pubSubnet} --address-prefixes ${defaultPublicCIDR} --network-security-group ${newNsgName} --delegations Microsoft.Databricks/workspaces --service-endpoints Microsoft.Storage >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
       if [[ $? > 0 ]]
       then
@@ -208,7 +208,7 @@ createVNetAndSubnetsIfDoesNotExist() {
   # create the subnet
   if [ ! -z $pvtsubnetid ]
   then
-      echo "$prvSubnet exists, we will use this subnet"
+      log_message "$prvSubnet exists, we will use this subnet"
       echo -n "Are you sure? (Y or N): "
       read -k 1 -r REPLY
       echo
@@ -235,7 +235,7 @@ createIPIfDoesNotExist() {
 
   if [ ! -z $piprid ]
   then
-    echo "pip $newPublicIpName exists, we will use this public ip"
+    log_message "pip $newPublicIpName exists, we will use this public ip"
     # read -p "Are you sure? (Y or N): " -n 1 -r
     # echo    # new line
     echo -n "Are you sure? (Y or N): "
@@ -284,7 +284,7 @@ createNatGatewayIfDoesNotExist() {
             return
         else
             #lets attach that to the private sunet as well
-            echo "attaching NAT gateway to private subnet"
+            log_message "attaching NAT gateway to private subnet"
             az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${prvSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
         fi
         #if we are good here lets return.
@@ -296,7 +296,7 @@ createNatGatewayIfDoesNotExist() {
     #if it exists - just need to attach it and exit
     if [[ ! -z $natgwid ]]
     then
-        echo "$natGatewayName exists, we will use this NAT Gateway"
+        log_message "$natGatewayName exists, we will use this NAT Gateway"
         echo -n "Are you sure? (Y or N): "
         read -k 1 -r REPLY
         echo
@@ -321,9 +321,7 @@ createNatGatewayIfDoesNotExist() {
             log_message error creating NAT gateway - exiting
             exit
         fi
-        # echo "waiting on NAT Gateway to complete deployment" 
-        # az network nat gateway wait --resource-group ${globalResourceGroupName} --name ${natGatewayName} --exists
-        # echo "deployed"
+        
     fi
         log_message "attaching NAT gateway to public subnet"
         az network vnet subnet update -g ${globalResourceGroupName} --vnet-name ${newVnetName} -n ${pubSubnet} --nat-gateway ${natGatewayName}  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
@@ -332,15 +330,15 @@ createNatGatewayIfDoesNotExist() {
 }
 
 updateWorkspaceFromPIPtoNPIP() {
-    echo "Verifying PIP to NPIP for workspace"
+    log_message "Verifying PIP to NPIP for workspace"
     if [[ ${workspaceExistingEnableNPIPConfiguration} == "false" ]]
     then
-        echo "Converting to NPIP"
+        log_message "Converting to NPIP"
         az databricks workspace update --ids ${globalWorkspaceResourceID} --enable-no-public-ip true  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-        echo "Waiting for workspace update to complete .... "
+        log_message "Waiting for workspace update to complete .... "
         az databricks workspace wait --ids ${globalWorkspaceResourceID} --updated
     else
-        echo "Workspace is NPIP"
+        log_message "Workspace is NPIP"
     fi
     createNatGatewayIfDoesNotExist
 }
@@ -414,11 +412,11 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
                       }
                   }
               }
-          }' | jq
-  sleep 1
+          }' | jq  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+
 
   echo
-  echo update the Workspace This could take up to 15 minutes ....
+  log_message update the Workspace This could take up to 15 minutes ....
   echo
 
   az rest --method put \
@@ -449,7 +447,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
       }
     }' >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
-  echo "Waiting for workspace update to complete .... "
+  log_message "Waiting for workspace update to complete .... "
   az databricks workspace wait --ids ${globalWorkspaceResourceID} --updated
 }
 
@@ -462,20 +460,20 @@ updateWorkspace() {
 
   if [[ $VnetNameID == "null" ]]
   then
-      echo "This workspace is Databricks Managed and will be updated to VNet Injected"
+      log_message "This workspace is Databricks Managed and will be updated to VNet Injected"
       updateWorkspaceFromDBMangedtoVnetInjected
   else
-      echo "This workspace is Vnet Injected"
+      log_message "This workspace is Vnet Injected"
       pubSubnet=$(echo $ws | jq .properties.parameters.customPublicSubnetName.value | sed 's/\"//g')
       prvSubnet=$(echo $ws | jq .properties.parameters.customPrivateSubnetName.value | sed 's/\"//g')
       newVnetName=$(basename $VnetNameID)
-      echo "private subnet name = $prvSubnet"
-      echo "public subnet name = $pubSubnet"
+      log_message "private subnet name = $prvSubnet"
+      log_message "public subnet name = $pubSubnet"
   fi
 
   updateWorkspaceFromPIPtoNPIP
 
-  echo "The workspace update has been completed."
+  log_message "The workspace update has been completed."
   echo "##################################################"
   echo "**************************************************"
   echo "Next Steps:"
