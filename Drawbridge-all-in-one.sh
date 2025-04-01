@@ -119,6 +119,8 @@ selectAzureDataPlaneSubscription() {
     if [[ $? > 0 ]]
     then
         log_message "Subscription $subscription was not accessable"
+        log_mesaage "You may not have persmissions for subscription " ${subscription}
+        log_message "Go to go/iam-requests to request access." 
         exit
     else
         return 0

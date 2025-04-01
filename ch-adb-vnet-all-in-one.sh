@@ -6,7 +6,6 @@ usage() {
         echo "-a API version (defaults to 2025-02-01-preview)"
         echo "-d debug mode"
         echo "-Z dry run mode" 
-        echo "-x Azure CLI login (optional)"
         exit
 }
 
@@ -21,7 +20,7 @@ usage() {
 # if pip convert to npip az databricks workspace update --resource-group <> --name <> --enable-no-public-ip true
 # add a Nat gateway
 
-optstring=":hw:a:xdZ"
+optstring=":hw:a:dZ"
 
 # defaults
 apiVersion='2025-02-01-preview'
@@ -48,7 +47,9 @@ while getopts ${optstring} arg; do
     w)
       workSpaceResourceID=$OPTARG
       workspaceName=$(basename "$workSpaceResourceID")
-      workSpaceLog=${workspaceName}'.'`date '+%Y%m%d%H%M%S'`
+      workSpaceLog=${workspaceName}'.'$(date '+%Y%m%d%H%M%S')
+      touch ${workSpaceLog}.log
+      touch ${workSpaceLog}.err
       ;;
     a) apiVersion=$OPTARG
       ;;
@@ -60,9 +61,6 @@ while getopts ${optstring} arg; do
     Z)
       echo "Dry Run Mode Set\nNochanges will be applied, for verification purposes only"
       dryrunMode=1
-      ;;
-    x)
-      az login
       ;;
     :)
       echo "$0: Must supply an argument to -$OPTARG." >&2
