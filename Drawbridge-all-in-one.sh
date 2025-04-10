@@ -359,6 +359,16 @@ fetchWorkspaceMetadata() {
   workspaceMRGResourceID=$(echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g')
   workspaceExistingEnableNPIPConfiguration=$(echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g')
   VnetNameID=$(echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g')
+  workSpaceRawESP=$(echo $ws | jq .properties.enhancedSecurityCompliance)
+
+  if [[ !  $workSpaceRawESP == 'null' ]]
+  then 
+     ChangeEspBlock=$(echo '"enhancedSecurityCompliance": '${workSpaceRawESP}',')
+     WSHasEsp='True'
+  else
+     ChangeEspBlock=''
+     WSHasEsp='False'
+  fi
 
   echo "##################################################"
   echo "**************************************************"
@@ -366,8 +376,9 @@ fetchWorkspaceMetadata() {
   echo "Region: $workspaceRegion"
   echo "Workspace Name: $globalWorkspaceName"
   echo "Resource Group Name: $globalResourceGroupName"
-  echo "Existing EnableNPIP Configuration: $workspaceExistingEnableNPIPConfiguration"
+  echo "Existing Enable NPIP Configuration: $workspaceExistingEnableNPIPConfiguration"
   echo "Custom VNet Resource ID: $VnetNameID"
+  echo "Enhanced Security Profile: $WSHasEsp"
   echo "**************************************************"
   echo "##################################################"
 
@@ -383,6 +394,7 @@ fetchWorkspaceMetadata() {
 }
 
 updateWorkspaceFromDBMangedtoVnetInjected() {
+
   VnetNameID='/subscriptions/'${subscription}'/resourceGroups/'${globalResourceGroupName}'/providers/Microsoft.Network/virtualNetworks/'${newVnetName}
 
   createNSGIfDoesNotExist
@@ -399,6 +411,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
               },
               "properties": {
                   "managedResourceGroupId": "'${workspaceMRGResourceID}'",
+                  '${ChangeEspBlock}'
                   "parameters": {
                       "customPrivateSubnetName": {
                           "value": "'${prvSubnet}'"
@@ -414,8 +427,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
                       }
                   }
               }
-          }' | jq  >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-
+          }'| jq >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
   echo
   log_message update the Workspace This could take up to 15 minutes ....
@@ -432,6 +444,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
       },
       "properties": {
           "managedResourceGroupId": "'${workspaceMRGResourceID}'",
+          '${ChangeEspBlock}'
           "parameters": {
               "customPrivateSubnetName": {
                   "value": "'${prvSubnet}'"
