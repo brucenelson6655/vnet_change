@@ -1,6 +1,7 @@
 armtest-ws.sh
 *.log
 *.err
+*.json
 manish-*
 *-save.sh
 *copy*
