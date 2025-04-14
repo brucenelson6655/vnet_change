@@ -86,7 +86,6 @@ then
 fi
 
 subscription=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 3)
-WSresourceGroup=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 5)
 
 log_message() {
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -120,7 +119,7 @@ selectAzureDataPlaneSubscription() {
     if [[ $? > 0 ]]
     then
         log_message "Subscription $subscription was not accessable"
-        log_mesaage "You may not have persmissions for subscription " ${subscription}
+        log_message "You may not have persmissions for subscription " ${subscription}
         log_message "Go to go/iam-requests to request access." 
         exit
     else
@@ -391,34 +390,6 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
 
   createVNetAndSubnetsIfDoesNotExist
 
-  echo '{
-              "type": "Microsoft.Databricks/workspaces",
-              "name": "'${globalWorkspaceName}'",
-              "location": "'${workspaceRegion}'",
-              "apiVersion": "'${defaultApiVersion}'",
-              "sku": {
-                  "name": "premium"
-              },
-              "properties": {
-                  "managedResourceGroupId": "'${workspaceMRGResourceID}'",
-                  '${ChangeEspBlock}'
-                  "parameters": {
-                      "customPrivateSubnetName": {
-                          "value": "'${prvSubnet}'"
-                      },
-                      "customPublicSubnetName": {
-                          "value": "'${pubSubnet}'"
-                      },
-                      "customVirtualNetworkId": {
-                          "value": "'${VnetNameID}'"
-                      },
-                      "enableNoPublicIp": {
-                          "value": '${workspaceExistingEnableNPIPConfiguration}'
-                      }
-                  }
-              }
-          }'| jq >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
-
   echo
   log_message update the Workspace This could take up to 15 minutes ....
   echo
@@ -433,16 +404,14 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
   log_message Deploying Arm Template ${workspaceLogFileNamePrefix}.json
 
   echo ${OrigWSARMtemplate} | jq 'del(.resources[]| select(.type == "Microsoft.Databricks/workspaces") | 
-    .properties.parameters.vnetAddressPrefix, .properties.parameters.publicIpName, .properties.parameters.natGatewayName) 
-    | .resources[].properties.parameters += 
-    {
-        customPublicSubnetName : {"value" : "'${pubSubnet}'"}, 
-        customPrivateSubnetName : {"value" : "'${prvSubnet}'"},
-        customVirtualNetworkId : {"value" : "'${VnetNameID}'"}
-    } 
-    | .resources[].apiVersion = "2025-02-01-preview"' > ${workspaceLogFileNamePrefix}.json 2>> ${workspaceLogFileNamePrefix}.err
-
-  az deployment group what-if --name ${workspaceLogFileNamePrefix} --resource-group ${globalResourceGroupName} --template-file ${workspaceLogFileNamePrefix}.json >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+      .properties.parameters.vnetAddressPrefix, .properties.parameters.publicIpName, .properties.parameters.natGatewayName) 
+      | .resources[].properties.parameters += 
+      {
+          customPublicSubnetName : {"value" : "'${pubSubnet}'"}, 
+          customPrivateSubnetName : {"value" : "'${prvSubnet}'"},
+          customVirtualNetworkId : {"value" : "'${VnetNameID}'"}
+      } 
+      | .resources[].apiVersion = "2025-02-01-preview"' > ${workspaceLogFileNamePrefix}.json 2>> ${workspaceLogFileNamePrefix}.err
 
   az deployment group create --name ${workspaceLogFileNamePrefix} --resource-group ${globalResourceGroupName} --template-file ${workspaceLogFileNamePrefix}.json >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
