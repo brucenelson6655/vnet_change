@@ -85,6 +85,14 @@ then
     exit
 fi
 
+dbresource=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 7)
+
+if [[ ! ${dbresource} == "Microsoft.Databricks" ]]
+then
+    echo "Invalid workspace resource ID ! .. Exiting"
+    exit
+fi
+
 subscription=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 3)
 
 log_message() {
