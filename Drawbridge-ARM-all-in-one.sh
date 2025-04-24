@@ -87,9 +87,15 @@ fi
 
 dbresource=$(echo ${globalWorkspaceResourceID} | cut -d '/' -f 7)
 
+if [[ -z ${dbresource} ]] 
+then 
+    dbresource="[Resource Group]" 
+fi
+
 if [[ ! ${dbresource} == "Microsoft.Databricks" ]]
 then
-    echo "Invalid workspace resource ID ! .. Exiting"
+    echo "Invalid workspace resource ID ! "
+    echo "The resource type ${dbresource} of this resuorce ID is not a Databriks workspace .. Exiting"
     exit
 fi
 
