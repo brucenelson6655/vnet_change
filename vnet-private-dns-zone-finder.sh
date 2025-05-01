@@ -1,6 +1,7 @@
 
 VnetNameID="/subscriptions/3f2e4d32-8e8d-46d6-82bc-5bb8d962328b/resourceGroups/brn-ip-conserve/providers/Microsoft.Network/virtualNetworks/brn-noroute-vnet"
 
+nameFilter='privatelink'
 
 checkPrivateDNSzoneLinks() {
         PZVnetNameID=$1
@@ -32,6 +33,6 @@ checkPrivateDNSzoneLinks() {
         echo "]"
 }
 
-ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} "brn-")
+ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} ${nameFilter})
 
 echo $ourJson
