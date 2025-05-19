@@ -1,38 +1,59 @@
 
-VnetNameID="/subscriptions/3f2e4d32-8e8d-46d6-82bc-5bb8d962328b/resourceGroups/brn-ip-conserve/providers/Microsoft.Network/virtualNetworks/brn-noroute-vnet"
+VnetNameID="/subscriptions/72d2cdcb-dd88-4ef9-a253-fd33245017d5/resourceGroups/brn-iceberg-rg/providers/Microsoft.Network/virtualNetworks/brn-iceberg--vnet"
 
-nameFilter='privatelink'
+# nameFilter='brn-'
+
+# userTenantId='9f37a392-f0ae-4280-9796-f1864a10effc'
 
 checkPrivateDNSzoneLinks() {
         PZVnetNameID=$1
-        PZsubscriptionid=$(echo ${PZVnetNameID} | cut -d '/' -f 3 | sed 's/\"//g')
-        VnetName=$(echo ${VnetNameID} | cut -d '/' -f 9 | sed 's/\"//g'  | tr -d "\r")
+        PZtenantId=$2
 
-        az account set --subscription ${PZsubscriptionid}
-        chkfilter=$2
+        if [ ! ${PZtenantId} ]
+        then 
+           PZsubscriptionid=$(echo ${PZVnetNameID} | cut -d '/' -f 3 | sed 's/\"//g')
+        else 
+           PZsubscriptionid=$(az account list | jq '.[] | select( .state | contains("Enabled")) | select( .tenantId | contains("'${PZtenantId}'")) | .id' | sed 's/\"//g' | tr -d "\r")
+        fi
+
         listcounter=0
         echo "["
-        pdns_zone_ids=$(az network private-dns zone list | jq '.[].id' | sed 's/\"//g' | tr -d "\r" | grep ${chkfilter})
-        # pdns_zone_ids=$(az network private-dns zone list | jq '.[].id' | sed 's/\"//g' | tr -d "\r")
-        for pzone in $(echo ${pdns_zone_ids})
+        for i in $(echo ${PZsubscriptionid} )
         do
-            PZresourceGroup=$(echo ${pzone} | cut -d '/' -f 5 | sed 's/\"//g' | tr -d "\r")
-            pzoneName=$(echo ${pzone} | cut -d '/' -f 9 | sed 's/\"//g' | tr -d "\r")
-            PZVnetNameID=$(az network private-dns link vnet list  -g ${PZresourceGroup} -z ${pzoneName}  | jq '.[].virtualNetwork | select( .id | contains("'${VnetName}'")) | .id' | sed 's/\"//g')
-            if [ ${PZVnetNameID} ]
+            az account set --subscription ${i}
+
+            VnetName=$(echo ${VnetNameID} | cut -d '/' -f 9 | sed 's/\"//g'  | tr -d "\r")
+
+            chkfilter=$3
+            
+            
+            if [ ${chkfilter} ]
             then 
-                if [[ $listcounter > 0 ]] 
-                then 
-                echo ","
-                fi
-                PZVnetName=$(echo ${PZVnetNameID} | cut -d '/' -f 9)
-                echo \{\"VirtualNetowrk\": \"${PZVnetName}\", \"ResourceGroup\": \"${PZresourceGroup}\", \"PrivateDNSzone\": \"${pzoneName}\"\}
-                ((listcounter++))
+                pdns_zone_ids=$(az network private-dns zone list | jq '.[].id' | sed 's/\"//g' | tr -d "\r" | grep ${chkfilter})
+            else
+                pdns_zone_ids=$(az network private-dns zone list | jq '.[].id' | sed 's/\"//g' | tr -d "\r")
             fi
+            for pzone in $(echo ${pdns_zone_ids})
+            do
+                PZresourceGroup=$(echo ${pzone} | cut -d '/' -f 5 | sed 's/\"//g' | tr -d "\r")
+                pzoneName=$(echo ${pzone} | cut -d '/' -f 9 | sed 's/\"//g' | tr -d "\r")
+                PZVnetNameID=$(az network private-dns link vnet list  -g ${PZresourceGroup} -z ${pzoneName}  | jq '.[].virtualNetwork | select( .id | contains("'${VnetName}'")) | .id' | sed 's/\"//g')
+                if [ ${PZVnetNameID} ]
+                then 
+                    if [[ $listcounter > 0 ]] 
+                    then 
+                    echo ","
+                    fi
+                    PZVnetName=$(echo ${PZVnetNameID} | cut -d '/' -f 9)
+                    echo \{\"Subscription\": \"${i}\", \"VirtualNetowrk\": \"${PZVnetName}\", \"ResourceGroup\": \"${PZresourceGroup}\", \"PrivateDNSzone\": \"${pzoneName}\"\}
+                    ((listcounter++))
+                fi
+            done
+            
         done
         echo "]"
 }
 
-ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} ${nameFilter})
+ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} ${userTenantId} ${nameFilter})
 
 echo $ourJson
