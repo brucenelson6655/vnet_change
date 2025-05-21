@@ -1,6 +1,6 @@
 # Databricks notebook source
-private_key_pass_raw = "admin1234" # passphrase for encryption .. could also be a keyvault secret
-pempath = "pem" # suggesting UC volume or DBFS
+private_key_pass_raw = "<passphrase>" # passphrase for encryption .. could also be a keyvault secret
+pempath = "<path to pem files>" # suggesting UC volume or DBFS
 
 # COMMAND ----------
 
@@ -50,12 +50,10 @@ from cryptography.hazmat.backends import default_backend
 import re
 import os
 
-passphr = "admin1234"
-
 with open(pempath + "/rsa_key.p8", "rb") as key_file:
     private_key = serialization.load_pem_private_key(
         key_file.read(),
-        password=passphr.encode(),
+        password=private_key_pass,
         backend=default_backend()
     )
 private_key_pem = private_key.private_bytes(
