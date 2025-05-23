@@ -4,6 +4,7 @@ armtest-ws.sh
 *.json
 manish-*
 *-save.sh
+*-test.sh
 *-save.ps1
 *-save.py
 *copy*

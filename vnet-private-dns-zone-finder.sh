@@ -1,9 +1,15 @@
 
-VnetNameID="/subscriptions/72d2cdcb-dd88-4ef9-a253-fd33245017d5/resourceGroups/brn-iceberg-rg/providers/Microsoft.Network/virtualNetworks/brn-iceberg--vnet"
+VnetNameID=${1}
 
-# nameFilter='brn-'
+if [ -z $VnetNameID ] 
+then 
+    echo "Usage $0 <vnet resource ID>"
+    exit
+fi
 
-# userTenantId='9f37a392-f0ae-4280-9796-f1864a10effc'
+# nameFilter='<Name Filter>' #optional
+
+# userTenantId='<tenant id>' #optional
 
 checkPrivateDNSzoneLinks() {
         PZVnetNameID=$1
@@ -34,7 +40,7 @@ checkPrivateDNSzoneLinks() {
                 pdns_zone_ids=$(az network private-dns zone list | jq '.[].id' | sed 's/\"//g' | tr -d "\r")
             fi
             for pzone in $(echo ${pdns_zone_ids})
-            do
+            do   
                 PZresourceGroup=$(echo ${pzone} | cut -d '/' -f 5 | sed 's/\"//g' | tr -d "\r")
                 pzoneName=$(echo ${pzone} | cut -d '/' -f 9 | sed 's/\"//g' | tr -d "\r")
                 PZVnetNameID=$(az network private-dns link vnet list  -g ${PZresourceGroup} -z ${pzoneName}  | jq '.[].virtualNetwork | select( .id | contains("'${VnetName}'")) | .id' | sed 's/\"//g')
