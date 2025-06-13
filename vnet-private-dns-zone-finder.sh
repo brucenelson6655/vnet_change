@@ -4,6 +4,7 @@ VnetNameID=${1}
 if [ -z $VnetNameID ] 
 then 
     echo "Usage $0 <vnet resource ID>"
+    echo "Works best piping out put to jq" 
     exit
 fi
 
