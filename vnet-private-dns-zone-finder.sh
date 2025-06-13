@@ -8,8 +8,10 @@ then
     exit
 fi
 
+# you can uncoment the name filter to narrow down specific resource groups etc  
 # nameFilter='<Name Filter>' #optional
 
+# uncomment for searching agains a specific Azure tenant 
 # userTenantId='<tenant id>' #optional
 
 checkPrivateDNSzoneLinks() {
