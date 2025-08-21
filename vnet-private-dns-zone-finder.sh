@@ -33,7 +33,7 @@ checkPrivateDNSzoneLinks() {
 
             VnetName=$(echo ${VnetNameID} | cut -d '/' -f 9 | sed 's/\"//g'  | tr -d "\r")
 
-            chkfilter=$3
+            chkfilter=${nameFilter}
             
             
             if [ ${chkfilter} ]
@@ -45,16 +45,26 @@ checkPrivateDNSzoneLinks() {
             for pzone in $(echo ${pdns_zone_ids})
             do   
                 PZresourceGroup=$(echo ${pzone} | cut -d '/' -f 5 | sed 's/\"//g' | tr -d "\r")
-                pzoneName=$(echo ${pzone} | cut -d '/' -f 9 | sed 's/\"//g' | tr -d "\r")
+                pzoneName=$(echo ${pzone} | cut -d '/' -f 9 | sed 's/\"//g' | tr -d "\r" )
                 PZVnetNameID=$(az network private-dns link vnet list  -g ${PZresourceGroup} -z ${pzoneName}  | jq '.[].virtualNetwork | select( .id | contains("'${VnetName}'")) | .id' | sed 's/\"//g')
                 if [ ${PZVnetNameID} ]
                 then 
+                    PZVnetName=$(echo ${PZVnetNameID} | cut -d '/' -f 9)
+                    PZVlinkname=$(az network private-dns link vnet list --resource-group ${PZresourceGroup} --zone-name ${pzoneName} | jq '.[] | select( .virtualNetwork.id | contains("'${VnetName}'")) | .name' | sed 's/\"//g')
+                    PZVfallback=$(az network private-dns link vnet list --resource-group ${PZresourceGroup} --zone-name ${pzoneName} | jq '.[] | select( .virtualNetwork.id | contains("'${VnetName}'")) | .resolutionPolicy' | sed 's/\"//g')
+                    if [[ $PZVfallback == "NxDomainRedirect" ]]
+                    then 
+                      PZVfallback="Yes"
+                    else
+                      PZVfallback="No"
+                    fi
+
                     if [[ $listcounter > 0 ]] 
                     then 
                     echo ","
                     fi
-                    PZVnetName=$(echo ${PZVnetNameID} | cut -d '/' -f 9)
-                    echo \{\"Subscription\": \"${i}\", \"VirtualNetowrk\": \"${PZVnetName}\", \"ResourceGroup\": \"${PZresourceGroup}\", \"PrivateDNSzone\": \"${pzoneName}\"\}
+                    
+                    echo \{\"Subscription\": \"${i}\", \"VirtualNetowrk\": \"${PZVnetName}\", \"ResourceGroup\": \"${PZresourceGroup}\", \"PrivateDNSzone\": \"${pzoneName}\", \"VnetLinkName\": \"${PZVlinkname}\", \"FallBackEnabled\": \"${PZVfallback}\"\}
                     ((listcounter++))
                 fi
             done
@@ -63,6 +73,6 @@ checkPrivateDNSzoneLinks() {
         echo "]"
 }
 
-ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} ${userTenantId} ${nameFilter})
+ourJson=$(checkPrivateDNSzoneLinks ${VnetNameID} ${userTenantId})
 
 echo $ourJson
