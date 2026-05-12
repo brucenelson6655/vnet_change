@@ -38,7 +38,7 @@ usage() {
 # defaults
 # defaultApiVersion='2025-02-01-preview'
 # updated for public Preview 8/20/2035
-defaultApiVersion='2025-08-01-preview'
+defaultApiVersion='2026-01-01'
 defaultApiEndpoint='https://management.azure.com'
 pubSubnet="public-subnet"
 prvSubnet="private-subnet"

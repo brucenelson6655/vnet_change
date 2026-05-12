@@ -10,3 +10,15 @@ manish-*
 *copy*
 pem
 Azurite*
+.vscode/
+.vs/
+*.code-workspace
+*.DS_Store
+.DS_Store
+*.bak
+*.tmp
+*.swp
+*.swo
+*.swn
+*.swn
+*.swn
