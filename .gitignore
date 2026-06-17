@@ -8,6 +8,7 @@ manish-*
 *-save.ps1
 *-save.py
 *copy*
+locker.sh
 pem
 Azurite*
 .vscode/

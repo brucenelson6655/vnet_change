@@ -38,6 +38,8 @@ prvSubnet="private-subnet"
 defaultVnetCIDR='10.139.0.0/16'
 defaultPublicCIDR='10.139.0.0/18'
 defaultPrivateCIDR='10.139.64.0/18'
+defaultTagName="SkipNPIPEnforcement"
+defaultTAGvalue="SECEXP-2498"
 
 ## set -x  # shows all commands being executed
 # # set -e  # exits on any command failure
@@ -134,6 +136,8 @@ createNSGIfDoesNotExist() {
     then
       echo "proceeding"
     else
+      # Remove tags here 
+      remove_tags
       exit
     fi
   else
@@ -143,6 +147,8 @@ createNSGIfDoesNotExist() {
     if [[ $? > 0 ]]
     then
         echo error creating NSG - exiting
+        # Remove tags here 
+        remove_tags
         exit
     fi
   fi
@@ -161,6 +167,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       then
         echo "proceeding"
       else
+        # Remove tags here 
+        remove_tags
         exit
       fi
   else
@@ -169,6 +177,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       if [[ $? > 0 ]]
       then
           echo error creating Vnet - exiting
+          # Remove tags here 
+          remove_tags
           exit
       fi
   fi
@@ -187,6 +197,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       then
         echo "proceeding"
       else
+        # Remove tags here 
+        remove_tags
         exit
       fi
   else
@@ -195,6 +207,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       if [[ $? > 0 ]]
       then
           echo error creating pub subnet - exiting
+          # Remove tags here 
+          remove_tags
           exit
       fi
   fi
@@ -211,6 +225,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       then
         echo "proceeding"
       else
+        # Remove tags here 
+        remove_tags
         exit
       fi
   else
@@ -219,6 +235,8 @@ createVNetAndSubnetsIfDoesNotExist() {
       if [[ $? > 0 ]]
       then
           echo error creating pvt subnet - exiting
+          # Remove tags here 
+          remove_tags
           exit
       fi
   fi
@@ -240,6 +258,8 @@ createIPIfDoesNotExist() {
     then
       echo "proceeding"
     else
+      # Remove tags here
+      remove_tags
       exit
     fi
   else
@@ -248,6 +268,8 @@ createIPIfDoesNotExist() {
     if [[ $? > 0 ]]
     then
       echo error creating public IP - exiting
+      # Remove tags here
+      remove_tags
       exit
     fi
   fi
@@ -296,6 +318,8 @@ createNatGatewayIfDoesNotExist() {
         then
             echo "proceeding"
         else
+            # Remove tags here
+            remove_tags
             exit
         fi
     else
@@ -306,6 +330,8 @@ createNatGatewayIfDoesNotExist() {
         if [[ $? > 0 ]]
         then
             echo error creating NAT gateway - exiting
+            # Remove tags here
+            remove_tags
             exit
         fi
     fi
@@ -340,13 +366,16 @@ fetchWorkspaceMetadata() {
 
   workspaceRegion=`echo $ws | jq .location  | sed 's/\"//g'`
   globalResourceGroupName=`echo $ws | jq .resourceGroup | sed 's/\"//g'`
+  globalResourceGroupID="/subscriptions/${subscription}/resourceGroups/${globalResourceGroupName}"
   workspaceMRGResourceID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
   workspaceExistingEnableNPIPConfiguration=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g'`
   VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
+ 
 
   echo "##################################################"
   echo "**************************************************"
   echo "Subscription: $subscription"
+  echo "Resource Group ID: $globalResourceGroupID"
   echo "Region: $workspaceRegion"
   echo "Workspace Name: $globalWorkspaceName"
   echo "Resource Group Name: $globalResourceGroupName"
@@ -362,6 +391,8 @@ fetchWorkspaceMetadata() {
   then
     echo "proceeding"
   else
+    # Remove tags here 
+    remove_tags
     exit
   fi
   echo "You may see some prompts on terminal such as ResourceNotFound or NotFound. Please ignore these error messages."
@@ -438,12 +469,38 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
   az databricks workspace wait --ids ${globalWorkspaceResourceID} --updated
 }
 
+apply_tags() {
+    if [[ -n $defaultTagName ]] 
+    then
+        az tag update --resource-id ${globalResourceGroupID} --operation merge --tags "${defaultTagName}"="${defaultTAGvalue}"
+        echo "Tags applied to resource group ${globalResourceGroupID}"
+        defaultTagisSet=true
+    else
+        echo "No tags to apply"
+        defaultTagisSet=false
+    fi
+}   
+
+remove_tags() {
+    if [[ $defaultTagisSet == true ]] 
+    then
+        az tag update --resource-id ${globalResourceGroupID} --operation delete --tags "${defaultTagName}"="${defaultTAGvalue}"
+        echo "Tags removed from resource group ${globalResourceGroupID}"
+        defaultTagisSet=false
+    else
+        echo "No tags to remove"
+    fi
+}   
+
 updateWorkspace() {
   fetchWorkspaceMetadata
 
   newVnetName=${globalWorkspaceName}'-dbdg-vnet'
   newNsgName=${globalWorkspaceName}'-dbdg-nsg'
   newPublicIpName=${globalWorkspaceName}'-dbdg-public-ip'
+
+  # Apply tags to the resource group
+  apply_tags
 
   if [[ $VnetNameID == "null" ]]
   then
@@ -459,6 +516,8 @@ updateWorkspace() {
 
   updateWorkspaceFromPIPtoNPIP
   log_message "Your stable puplic IP address is ${globalPublicIpAddress}, recommended add it to the universe file"
+  # Remove tags here 
+  remove_tags
 
   echo "The workspace update has been completed."
   echo "##################################################"
