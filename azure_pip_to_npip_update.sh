@@ -40,6 +40,7 @@ defaultPublicCIDR='10.139.0.0/18'
 defaultPrivateCIDR='10.139.64.0/18'
 defaultTagName="SkipNPIPEnforcement"
 defaultTAGvalue="SECEXP-2498"
+defaultPropertiesBlock='}'
 
 ## set -x  # shows all commands being executed
 # # set -e  # exits on any command failure
@@ -370,7 +371,14 @@ fetchWorkspaceMetadata() {
   workspaceMRGResourceID=`echo $ws | jq .properties.managedResourceGroupId  | sed 's/\"//g'`
   workspaceExistingEnableNPIPConfiguration=`echo $ws | jq .properties.parameters.enableNoPublicIp.value  | sed 's/\"//g'`
   VnetNameID=`echo $ws | jq .properties.parameters.customVirtualNetworkId.value  | sed 's/\"//g'`
- 
+  CSP_enabledBlock=`echo $ws | jq .properties.enhancedSecurityCompliance`
+  CSP_enabled=false
+  if [[ $CSP_enabledBlock != "null" ]]
+  then
+      CSP_enabled=true
+      CSP_formatted_block=`echo ,\"enhancedSecurityCompliance\": $CSP_enabledBlock`
+      echo $CSP_formatted_block >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
+  fi
 
   echo "##################################################"
   echo "**************************************************"
@@ -381,8 +389,15 @@ fetchWorkspaceMetadata() {
   echo "Resource Group Name: $globalResourceGroupName"
   echo "Existing EnableNPIP Configuration: $workspaceExistingEnableNPIPConfiguration"
   echo "Custom VNet Resource ID: $VnetNameID"
+  echo "CSP Enabled: $CSP_enabled"
   echo "**************************************************"
   echo "##################################################"
+
+  # special case for CSP workspaces, we need to add the CSP block to the update payload
+    if [[ $CSP_enabled == true ]]
+    then
+        defaultPropertiesBlock=${CSP_formatted_block}'}'
+    fi 
 
   echo -n "Should we start updating the workspace? (Y or N): "
   read -k 1 -r REPLY
@@ -429,7 +444,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
                           "value": '${workspaceExistingEnableNPIPConfiguration}'
                       }
                   }
-              }
+              '${defaultPropertiesBlock}'
           }' | jq
   sleep 1
 
@@ -462,7 +477,7 @@ updateWorkspaceFromDBMangedtoVnetInjected() {
                   "value": '${workspaceExistingEnableNPIPConfiguration}'
               }
           }
-      }
+      '${defaultPropertiesBlock}'
     }' >> ${workspaceLogFileNamePrefix}.log 2>> ${workspaceLogFileNamePrefix}.err
 
   echo "Waiting for workspace update to complete .... "
